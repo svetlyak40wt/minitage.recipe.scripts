@@ -26,208 +26,79 @@ import tempfile
 import urllib2
 import urlparse
 
-from  minitage.core import get_from_cache, system
+from minitage.recipe import common
+from minitage.core import core
 
-class Recipe(object):
+class Recipe(common.MinitageCommonRecipe):
     """
     Downloads and installs a distutils Python distribution.
     """
     def __init__(self, buildout, name, options):
-        self.logger = logging.getLogger(name)
-        self.buildout, self.name, self.options = buildout, name, options
-        site_packages='site-packages'
+        common.MinitageCommonRecipe.__init__(self,
+                                    buildout, name, options)
 
-        # site-packages defaults to the python version !
-        python = options.get('python', buildout['buildout']['python'])
-
-        options['executable'] = buildout[python]['executable']
-        if options.has_key('site-packages'):
-            site_packages=options['site-packages']
-        else:
-            site_packages='site-packages-%s' % (
-                os.popen(
-                    '%s -c "%s"' % (
-                        options['executable'],
-                        'import sys;print sys.version[:3]'
-                    )
-                ).read().replace('\n', '')
-            )
-
-        options['location'] = os.path.join(
-            buildout['buildout']['parts-directory'],
-            site_packages
-        )
-
-        # If 'download-cache' has not been specified,
-        # fallback to [buildout]['downloads']
-        buildout['buildout'].setdefault(
-            'download-cache',
-            buildout['buildout'].get(
-                'download-cache',
-                os.path.join(
-                    buildout['buildout']['directory'], 'downloads'
-                )
-            )
-        )
-
-        # separate python archives in downloaddir/distutils
-        self.download_cache = os.path.join(
-            buildout['buildout']['directory'],
-            buildout['buildout'].get('download-cache'),
-            'distutils'
-        )
-        self.offline = buildout['buildout'].get('install-from-cache')
-
-    def set_py_path(self):
-        """Set python path."""
-        pypath = self.options.get('pythonpath', '').split()
-        os.environ['PYTHONPATH']=":".join(
-            pypath,
-            self.buildout['buildout']['directory'],
-            self.options['location'],
-            os.environ.get('PYTHONPATH',''),
-        )
-        sys.path += pypath
-
-
-    def set_path(self):
-        """Set path."""
-        os.environ['PATH']=":".join(
-            self.options.get('path', '').split(),
-            self.buildout['buildout']['directory'],
-            self.options['location'],
-            os.environ.get('PATH', '')
-        )
-
-    def set_pkgconfigpath(self):
-        """Set PKG-CONFIG-PATH."""
-        os.environ['PKG_CONFIG_PATH']=":".join(
-            self.options.get('pkg-config-path', '').split(),
-            os.environ.get('PKG_CONFIG_PATH', '')
-        )
-
-    def set_compilation_flags(self):
-        """Set CFALGS/LDFLAGS."""
 
     def install(self):
-        """
-        installs a python package using distutils
-            - You can play with pre-setup-hook and post-setup-hook to make as in
+        """installs a python package using distutils.
+
+        - You can play with pre-setup-hook and post-setup-hook to make as in
             hexagonit.cmmi
-            - You can apply patches, and more over specificly to your os with
+        - You can apply patches, and more over specificly to your os with
             those 4 options in buildout:
+
                 - freebsd-patches
                 - linux-patches
                 - patches
-                - darwin-patches """
-
-        dest = self.options['location']
-        url = self.options['url']
-        build_ext = self.options.get('build_ext','')
-        fname = get_from_cache(url,
-                             self.name,
-                             self.download_cache,
-                             self.offline)
-
-        patch_cmd = self.options.get(
-            'patch-binary',
-            'patch'
-        ).strip()
-        patch_options = ' '.join(self.options.get(
-            'patch-options', '-p0').split()
-        )
-        patches = self.options.get('patches', '').split()
-        uname=os.uname()[0]
-        # conditionnaly add OS specifics patches.
-        patches+=self.options.get('%s-patches'%(uname.lower()), '').split()
-
-        tmp = tempfile.mkdtemp('buildout-' + self.name)
-        self.logger.info('Unpacking and configuring')
-        setuptools.archive_util.unpack_archive(
-            fname,
-            tmp
-        )
-        here = os.getcwd()
-        if not os.path.exists(dest):
-            os.makedirs(dest)
-
+                - darwin-patches
+        """
         try:
-            cmds=[]
-            executable=self.options.get(
-                'executable',
-                sys.executable
-            )
-            os.chdir(tmp)
-            try:
-                if not os.path.exists('setup.py'):
-                    entries = os.listdir(tmp)
-                    if len(entries) == 1:
-                        os.chdir(entries[0])
-                    else:
-                        raise core.MinimergeError("Couldn't find setup.py")
+            # downloading
+            fname = self._download()
 
+            # unpack
+            self._unpack(fname)
 
-                # set python path
-                self.set_py_path()
+            # get default compilation directory
+            self.compil_dir = self._get_compil_dir(self.tmp_directory)
 
-                # set path
-                self.set_path()
+            # set path
+            self._set_path()
 
-                # set pkgconfigpath
-                self.set_pkgconfigpath()
+            # set pkgconfigpath
+            self._set_pkgconfigpath()
 
-                if self.options.get('rpath',None):
-                    os.environ['LDFLAGS']=os.environ.get('LDFLAGS',' ')+" "+" ".join([" -Wl,-rpath -Wl,%s " %s for s in self.options['rpath'].split()])
-                    os.environ['LD_RUN_PATH']=os.environ.get('LD_RUN_PATH',' ')+":".join(["%s" %s for s in self.options['rpath'].split()])
+            # set python path
+            self._set_py_path()
 
-                if self.options.get('libraries',None):
-                    os.environ['LDFLAGS']= os.environ.get('LDFLAGS',' ')+" "+" ".join([" -L%s " %s for s in self.options['libraries'].split()])
+            # applying patches
+            self._patch(self.patches)
 
-                if self.options.get('includes',None):
-                    os.environ['CFLAGS'] =os.environ.get('CFLAGS',' ')   +" "+ " ".join([" -I%s "   %s for s in self.options['includes'].split()])
-                    os.environ['CPPFLAGS']=os.environ.get('CPPFLAGS',' ')+" "+" ".join([" -I%s " %s for s in self.options['includes'].split()])
-                    os.environ['CXXFLAGS']=os.environ.get('CXXFLAGS',' ')+" "+" ".join([" -I%s " %s for s in self.options['includes'].split()])
+            # executing pre-hook.
+            self._call_hook('pre_setup_hook')
 
-                if patches:
-                     self.logger.info('Applying patches')
-                     for patch in patches:
-                         system('%s %s < %s' % (patch_cmd, patch_options, patch),self.logger)
+            # compile time
+            self._build_python_package(self.compil_dir)
 
-                if 'pre-setup-hook' in self.options and len(self.options['pre-setup-hook'].strip()) > 0:
-                    self.logger.info('Executing pre-setup-hook')
-                    self.call_script(self.options['pre-setup-hook'])
+            # executing pre-hook.
+            self._call_hook('pre_install_hook')
 
-                if build_ext or self.options.get('rpath',None) or self.options.get('libraries',None) or self.options.get('includes',None):
-                    cmds.append('"%s" setup.py build_ext %s' % (executable,build_ext.replace('\n',' ')))
+            # install time
+            self._install_python_package(self.compil_dir)
 
-                cmds.append('"%s" setup.py build' % (executable))
-                #cmds.append( '''"%s" setup.py install --install-purelib="%s" --install-platlib="%s"''' % (executable, dest, dest))
-                cmds.append( '''"%s" setup.py install --install-purelib="%s" --install-platlib="%s" --prefix=%s''' % (executable, dest, dest,self.buildout['buildout']['directory']))
-                for cmd in cmds:
-                    system(cmd,self.logger)
+            # executing pre-hook.
+            self._call_hook('post_setup_hook')
 
-                if 'post-setup-hook' in self.options and len(self.options['post-setup-hook'].strip()) > 0:
-                    self.logger.info('Executing post-setup-hook')
-                    self.call_script(self.options['post-setup-hook'])
+        except Exception, e:
+            self.logger.error('Compilation error. The package is left as is at %s where '
+                      'you can inspect what went wrong' % self.tmp_directory)
+            self.logger.error('Message was:\n\t%s' % e)
+            raise core.MinimergeError('Recipe failed, cant install.')
 
-            finally:
-                os.chdir(here)
-        except:
-            os.rmdir(dest)
-            raise
+        shutil.rmtree(self.tmp_directory)
 
         return []
 
     def update(self):
         pass
 
-    def call_script(self, script):
-        """This method is copied from z3c.recipe.runscript.
 
-        See http://pypi.python.org/pypi/z3c.recipe.runscript for details.
-        """
-        filename, callable = script.split(':')
-        filename = os.path.abspath(filename)
-        module = imp.load_source('script', filename)
-        # Run the script with all options
-        getattr(module, callable.strip())(self.options, self.buildout)
