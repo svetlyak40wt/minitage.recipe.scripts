@@ -65,7 +65,6 @@ class Recipe(common.MinitageCommonRecipe):
             self._patch(self.build_dir)
 
             # preconfigure hook
-            self._set_compilation_flags()
             self._call_hook('pre-configure-hook')
 
             # run configure

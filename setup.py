@@ -50,10 +50,14 @@ setup(
                         'minitage.core'],
     #tests_require = ['zope.testing'],
     #test_suite = '%s.tests.test_suite' % name,
+    # adding zdu, setuptools seems to order recipes executions
+    # in akphabetical order for entry points
+    # workaround when using the 2 recipes in the same buildout.
     entry_points = {
         'zc.buildout' : [
             'default = %s:Recipe' % name,
             'du = %s:Recipe' % 'minitage.recipe.du',
+            'zdu = %s:Recipe' % 'minitage.recipe.du',
             'cmmi = %s:Recipe' % 'minitage.recipe.cmmi',
         ]
     },

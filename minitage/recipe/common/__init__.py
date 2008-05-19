@@ -31,12 +31,14 @@ from minitage.core.unpackers.interfaces import IUnpackerFactory
 from minitage.core import core
 from minitage.core import interfaces
 
+__logger__ = 'minitage.recipe'
+
 class MinitageCommonRecipe(object):
     """
     Downloads and installs a distutils Python distribution.
     """
     def __init__(self, buildout, name, options):
-        self.logger = logging.getLogger(name)
+        self.logger = logging.getLogger(__logger__)
         self.buildout, self.name, self.options = buildout, name, options
         self.uname = os.uname()[0]
         self.offline = buildout.offline
@@ -224,6 +226,8 @@ class MinitageCommonRecipe(object):
             self.libraries.append(os.path.join(s, 'lib'))
             self.rpath.append(os.path.join(s, 'lib'))
             self.pkgconfigpath.append(os.path.join(s, 'lib', 'pkgconfig'))
+            self.path.append(os.path.join(s, 'bin'))
+            self.path.append(os.path.join(s, 'sbin'))
 
         for s in self.minitage_eggs + [self.site_packages_path]:
             self.pypath.append(s)
