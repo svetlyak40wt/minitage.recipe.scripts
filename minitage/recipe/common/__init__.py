@@ -43,7 +43,7 @@ class MinitageCommonRecipe(object):
         self.install_from_cache = self.options.get('install-from-cache', None)
 
         # to the python (which will install the egg) version !
-        self.executable = options.get('python', sys.executable)
+        self.executable = options.get('executable', sys.executable)
         self.executable_version = os.popen(
             '%s -c "%s"' % (
                 self.executable ,
@@ -53,9 +53,12 @@ class MinitageCommonRecipe(object):
 
         # site-packages defaults
         self.site_packages = 'site-packages-%s' % self.executable_version
-        self.site_packages_path = os.path.join(
-            self.buildout['buildout']['directory'],
-            self.site_packages)
+        self.site_packages_path = self.options.get(
+            'site-packages',
+            os.path.join(
+                self.buildout['buildout']['directory'],
+                self.site_packages)
+        )
 
         # url from
         self.url = self.options['url']
@@ -146,6 +149,13 @@ class MinitageCommonRecipe(object):
                 'configure-options',
                 '').split()
         )
+        # conditionnaly add OS specifics patches.
+        self.configure_options += ' '.join(
+            self.options.get(
+                'configure-options-%s' % (self.uname.lower()),
+                ''
+            ).split()
+        )
 
         #path
         self.path = self.options.get('path', '').split()
@@ -156,7 +166,7 @@ class MinitageCommonRecipe(object):
         # python path
         self.pypath = [self.buildout['buildout']['directory'], self.options['location']]
         self.pypath.extend(self.pypath)
-        self.pypath.extend(os.environ.get('PYTHONPATH','').split(':'))
+        #self.pypath.extend(os.environ.get('PYTHONPATH','').split(':'))
         self.pypath.extend(self.options.get('pythonpath', '').split())
 
         # compilation flags
@@ -180,11 +190,6 @@ class MinitageCommonRecipe(object):
             )
             shutil.rmtree(self.tmp_directory)
 
-        # initialise working directories
-        for path in [self.prefix, self.tmp_directory]:
-            if not os.path.exists(path):
-                os.makedirs(path)
-
         # minitage specific
         self.minitage_section = {}
         self.minitage_dependencies = []
@@ -193,26 +198,25 @@ class MinitageCommonRecipe(object):
             self.minitage_section = buildout['minitage']
 
         self.minitage_dependencies.extend(
-             [os.path.join(
-                 buildout['buildout']['directory'],
-                 s,
-                 'parts',
-                 'part') \
-              for s in self.minitage_section.get(
-                  'dependencies', ''
-              ).split() if s.strip()]
+            [os.path.abspath(os.path.join(
+                buildout['buildout']['directory'],
+                '..',
+                '..',
+                'dependencies',
+                s,
+                'parts',
+                'part'
+            )) for s in self.minitage_section.get(
+                'dependencies', ''
+            ).split() if s.strip()]
         )
 
         self.minitage_eggs.extend(
-            [   os.path.join(
+            [os.path.abspath(os.path.join(
                 buildout['buildout']['directory'],
-                'eggs',
-                s,
-                'parts',
-                self.site_packages,
-            ) for s in self.minitage_section.get(
-                  'eggs', ''
-              ).split() if s.strip()]
+                '..', '..', 'eggs', s, 'parts', self.site_packages,
+            )) for s in self.minitage_section.get(
+                  'eggs', '').split() if s.strip()]
         )
 
         for s in self.minitage_dependencies:
@@ -230,15 +234,15 @@ class MinitageCommonRecipe(object):
         """
         if self.build_dir:
             if not os.path.isdir(self.build_dir):
-                os.mkdir(self.build_dir)
+                os.makedirs(self.build_dir)
         else:
             self.build_dir = compile_dir
 
-        configure = os.path.join(self.build_dir, self.configure)
+        configure = os.path.join(compile_dir, self.configure)
         if not os.path.isfile(configure) \
-           and not self.options.has_key('noconfigure'):
+           and (not 'noconfigure' in self.options):
             self.logger.error('Unable to find the configure script')
-            raise core.MinimergeError('Invalid package contents')
+            raise core.MinimergeError('Invalid package contents, there is no configure script.')
 
         return configure
 
@@ -247,9 +251,9 @@ class MinitageCommonRecipe(object):
         Argument
             - configure : the configure script
         """
-        CWD = os.getcwd()
+        cwd = os.getcwd()
         os.chdir(self.build_dir)
-        if not self.options.has_key('noconfigure'):
+        if not 'noconfigure' in self.options:
             self._system(
                     '%s --prefix=%s %s' % (
                         configure,
@@ -280,9 +284,10 @@ class MinitageCommonRecipe(object):
         if os.path.isdir(self.prefix):
             shutil.move(self.prefix, tmp)
 
-        if not self.options.get('noinstall', None):
+        if not 'noinstall' in self.options:
             try:
                 os.makedirs(self.prefix)
+                self._call_hook('pending-make-install-hook')
                 self._make(directory, self.install_targets)
             except Exception, e:
                 shutil.rmtree(self.prefix)
@@ -306,10 +311,7 @@ class MinitageCommonRecipe(object):
     def _set_py_path(self):
         """Set python path."""
         self.logger.info('Setting path')
-        sys.path.extend([path \
-                         for path in self.pypath\
-                         if not path in sys.path])
-        os.environ['PYTHONPATH'] = ':'.join(sys.path)
+        os.environ['PYTHONPATH'] = ':'.join(self.pypath)
 
     def _set_path(self):
         """Set path."""
@@ -337,6 +339,7 @@ class MinitageCommonRecipe(object):
                 [os.environ.get('LD_RUN_PATH','')]
                 + [s for s in self.rpath\
                    if s.strip()]
+                + [os.path.join(self.prefix, 'lib')]
             )
 
         if self.libraries:
@@ -349,7 +352,8 @@ class MinitageCommonRecipe(object):
             os.environ['LDFLAGS'] = ' '.join(
                 [os.environ.get('LDFLAGS',' ')]
                 + [' -L%s -Wl,-rpath -Wl,%s ' % (s,s) \
-                   for s in self.libraries\
+                   for s in self.libraries \
+                   + [os.path.join(self.prefix, 'lib')]
                    if s.strip()]
                 + [darwin_ldflags]
             )
@@ -480,5 +484,8 @@ class MinitageCommonRecipe(object):
 
     def _system(self, cmd):
         """Running a command."""
-        return system(cmd, self.logger)
+        self.logger.info('Running %s' % cmd)
+        ret = os.system(cmd)
+        if ret:
+            raise  core.MinimergeError('Command failed: %s' % cmd)
 # vim:set et sts=4 ts=4 tw=80:

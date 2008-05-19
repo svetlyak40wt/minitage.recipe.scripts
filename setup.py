@@ -1,6 +1,10 @@
 import os
-
 from setuptools import setup, find_packages
+os.chdir(
+    os.path.abspath(
+        os.path.dirname(__file__)
+    )
+)
 
 name='minitage.recipe'
 version = '0.0.1'
@@ -38,7 +42,7 @@ setup(
     url='http://cheeseshop.python.org/pypi/%s' % name,
     license='GPL',
     packages=find_packages(exclude=['ez_setup']),
-    namespace_packages=['minitage','minitage.recipe'],
+    namespace_packages=['minitage.recipe'],
     include_package_data=True,
     zip_safe=False,
     install_requires = ['zc.buildout',

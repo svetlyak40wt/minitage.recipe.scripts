@@ -33,7 +33,10 @@ class Recipe(common.MinitageCommonRecipe):
 
     def install(self):
         """Install the recipe."""
-
+        # initialise working directories
+        for path in [self.prefix, self.tmp_directory]:
+            if not os.path.exists(path):
+                os.makedirs(path)
         try:
             # downloading or get the path
             # in the cache if we are offline
@@ -51,13 +54,18 @@ class Recipe(common.MinitageCommonRecipe):
             # set pkgconfigpath
             self._set_pkgconfigpath()
 
+            # set compile path
+            self._set_compilation_flags()
+
             # choose configure
             self.configure = self._choose_configure(self.compil_dir)
+            self.options['compile-directory'] = self.build_dir
 
             # apply patches
-            self._patch(self.patches)
+            self._patch(self.build_dir)
 
             # preconfigure hook
+            self._set_compilation_flags()
             self._call_hook('pre-configure-hook')
 
             # run configure
@@ -70,11 +78,17 @@ class Recipe(common.MinitageCommonRecipe):
             self._make(self.build_dir, self.make_targets)
 
             # installing
-            self._make(self.build_dir, self.install_targets)
+            self._make_install(self.build_dir)
 
             # post hook
             self._call_hook('post-make-hook')
 
+            # cleaning
+            for path in self.build_dir, self.tmp_directory:
+                if os.path.isdir(path):
+                    shutil.rmtree(path)
+
+            self.logger.info('Completed install.')
         except Exception, e:
             self.logger.error('Compilation error. The package is left as is at %s where '
                       'you can inspect what went wrong' % self.tmp_directory)
@@ -86,5 +100,5 @@ class Recipe(common.MinitageCommonRecipe):
     def update(self):
         """Update the recipe.
         wrapper to install"""
-        self.install()
+
 

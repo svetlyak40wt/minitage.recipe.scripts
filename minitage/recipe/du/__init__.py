@@ -51,6 +51,10 @@ class Recipe(common.MinitageCommonRecipe):
                 - patches
                 - darwin-patches
         """
+        # initialise working directories
+        for path in [self.prefix, self.tmp_directory]:
+            if not os.path.exists(path):
+                os.makedirs(path)  
         try:
             # downloading
             fname = self._download()

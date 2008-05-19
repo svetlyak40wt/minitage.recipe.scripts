@@ -50,8 +50,8 @@ pythonpath = a b
 name=part
 includes = a b c
            d e f
-libraries = a b c
-            d e f
+libraries = a/lib b/lib c/lib
+            d/lib e/lib f/lib
 rpath = a b c
         d e f
 recipe = minitage.recipe:cmmi
@@ -163,7 +163,7 @@ class Test(unittest.TestCase):
         shutil.rmtree(tmp)
         recipe = None
 
-    def atestOptions(self):
+    def testOptions(self):
         """testCommon."""
         bd = Buildout(fp, [])
         recipe = MinitageCommonRecipe(bd, '666', bd['part'])
@@ -185,7 +185,7 @@ class Test(unittest.TestCase):
                           )
                          )
 
-    def atestdownload(self):
+    def testdownload(self):
         """testDownload."""
         p = tmp
         bd = Buildout(fp, [])
@@ -210,7 +210,7 @@ class Test(unittest.TestCase):
             os.path.join(p, 'a')
         )
 
-    def atestPyPath(self):
+    def testPyPath(self):
         """testPyPath."""
         p = tmp
         bd = Buildout(fp, [])
@@ -218,24 +218,23 @@ class Test(unittest.TestCase):
         recipe = MinitageCommonRecipe(bd, '666', bd['part'])
         ppath = sys.path
         recipe._set_py_path()
-        nppath = sys.path
+        nppath = os.environ['PYTHONPATH']
         for elem in [recipe.buildout['buildout']['directory'],
                      recipe.options['location'],]\
-                    + os.environ.get('PYTHONPATH','').split(':') \
-                    + ['%s/eggs/egg1/parts/%s' % (
-                            d,recipe.site_packages
+                    + ['/eggs/egg1/parts/%s' % (
+                            recipe.site_packages
                         ),
-                        '%s/eggs/egg2/parts/%s' % (
-                            d, recipe.site_packages
+                        '/eggs/egg2/parts/%s' % (
+                           recipe.site_packages
                         ),
-                        '%s/eggs/egg3/parts/%s'  % (
-                            d, recipe.site_packages
+                        '/eggs/egg3/parts/%s'  % (
+                           recipe.site_packages
                         ),
                     ]:
             print elem
             self.assertTrue(elem in nppath)
 
-    def atestPath(self):
+    def testPath(self):
         """testPath."""
         p = tmp
         bd = Buildout(fp, [])
@@ -248,7 +247,7 @@ class Test(unittest.TestCase):
                     + os.environ.get('PATH','').split(':') :
             self.assertTrue(elem in path)
 
-    def atestPkgconfigpath(self):
+    def testPkgconfigpath(self):
         """testPkgconfigpath."""
         p = tmp
         bd = Buildout(fp, [])
@@ -264,7 +263,7 @@ class Test(unittest.TestCase):
                        for dep in recipe.minitage_dependencies]:
             self.assertTrue(elem in path)
 
-    def atestCompilationFlags(self):
+    def testCompilationFlags(self):
         """testCompilationFlags."""
         p = tmp
         bd = Buildout(fp, [])
@@ -277,7 +276,8 @@ class Test(unittest.TestCase):
         recipe._set_compilation_flags()
         self.assertEquals(os.environ.get('LD_RUN_PATH')
                           , ':a:b:c:d:e:f:%s/lib'% (
-                              '/lib:'.join(recipe.minitage_dependencies)
+                              '/lib:'.join(recipe.minitage_dependencies
+                                           + [recipe.prefix])
                           )
                          )
         self.assertEquals(os.environ.get('CFLAGS'),
@@ -288,19 +288,15 @@ class Test(unittest.TestCase):
                           )
                          )
         self.assertEquals(os.environ.get('LDFLAGS'),
-                          '%s%s%s%s%s' %(
-                              '  -La -Wl,-rpath -Wl,a   -Lb -Wl,-rpath -Wl,b ',
-                              '  -Lc -Wl,-rpath -Wl,c   -Ld -Wl,-rpath -Wl,d ',
-                              '  -Le -Wl,-rpath -Wl,e   -Lf -Wl,-rpath -Wl,f ',
-                              '%s'  %(
-                                      ''.join(['  -L%s/lib -Wl,-rpath -Wl,%s/lib ' % (s,s) \
-                                      for s in recipe.minitage_dependencies])
-                              ),
+                          '%s%s' %(
+                              ''.join(['  -L%s/lib -Wl,-rpath -Wl,%s/lib ' % (s,s) \
+                                       for s in ['a','b','c','d','e','f'] \
+                                       + recipe.minitage_dependencies + [recipe.prefix]]),
                               '  -mmacosx-version-min=10.5.0 ',
                           )
                          )
 
-    def atestUnpack(self):
+    def testUnpack(self):
         """testUnpack."""
         p = tmp
         os.system("""
@@ -321,7 +317,7 @@ class Test(unittest.TestCase):
             )
         )
 
-    def atestPatch(self):
+    def testPatch(self):
         """testPatch."""
         p = tmp
         os.system("""
@@ -352,7 +348,7 @@ class Test(unittest.TestCase):
             'titi\n'
         )
 
-    def atestCallHook(self):
+    def testCallHook(self):
         """testCallHook."""
         p = tmp
         hook = os.path.join(tmp, 'toto.py')
@@ -377,7 +373,7 @@ EOF""" % (tmp, hook, tmp))
             'foo'
         )
 
-    def atestGetCompilDir(self):
+    def testGetCompilDir(self):
         """testGetCompilDir."""
         p = tmp
         os.system("""
@@ -392,7 +388,7 @@ mkdir tutu/.download
         directory = recipe._get_compil_dir(tmp)
         self.assertEquals(directory, os.path.join(tmp, 'tutu'))
 
-    def atestChooseConfigure(self):
+    def testChooseConfigure(self):
         """testChooseConfigure."""
         p = tmp
         os.system("""
@@ -410,11 +406,11 @@ touch toto/test
 
         recipe.build_dir = os.path.join(tmp, 'toto')
         recipe.configure = 'test'
-        configure = recipe._choose_configure(tmp)
+        configure = recipe._choose_configure(recipe.build_dir)
         self.assertEquals(configure, os.path.join(tmp, 'toto', 'test'))
         self.assertEquals(recipe.build_dir, os.path.join(tmp, 'toto'))
 
-    def atestConfigure(self):
+    def testConfigure(self):
         """testConfigure."""
         p = tmp
         os.system("""
@@ -433,7 +429,7 @@ chmod +x configure
             )
         )
 
-    def atestMake(self):
+    def testMake(self):
         """testMake."""
         p = tmp
         open(
@@ -454,7 +450,7 @@ chmod +x configure
             )
         )
 
-    def atestMakeInstall(self):
+    def testMakeInstall(self):
         """testMake."""
         p = tmp
         open(
@@ -499,7 +495,7 @@ chmod +x configure
             )
         )
 
-    def atestBuildEgg(self):
+    def testBuildEgg(self):
         """testBuildEgg."""
         p = tmp
         make_fakeegg(tmp)
@@ -511,7 +507,7 @@ chmod +x configure
             os.path.join(p,'build'))
         )
 
-    def atestInstallEgg(self):
+    def testInstallEgg(self):
         """installEgg."""
         p = tmp
         make_fakeegg(tmp)
@@ -532,7 +528,7 @@ chmod +x configure
             )
         )
 
-    def atestCmmi(self):
+    def testCmmi(self):
         """testCmmi."""
         p = tmp
         os.system("""
@@ -556,7 +552,7 @@ chmod +x configure
                 os.path.join(tmp,file)
             )
 
-    def atestDu(self):
+    def testDu(self):
         """testDu."""
         p = tmp
         make_fakeegg(tmp)
