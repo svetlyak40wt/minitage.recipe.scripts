@@ -56,6 +56,7 @@ class Recipe(common.MinitageCommonRecipe):
             if not os.path.exists(path):
                 os.makedirs(path)  
         try:
+            self.logger.info('Installing python package.')
             # downloading
             fname = self._download()
 
@@ -64,6 +65,7 @@ class Recipe(common.MinitageCommonRecipe):
 
             # get default compilation directory
             self.compil_dir = self._get_compil_dir(self.tmp_directory)
+            self.options['compile-directory'] = self.compil_dir
 
             # set path
             self._set_path()
@@ -75,7 +77,7 @@ class Recipe(common.MinitageCommonRecipe):
             self._set_py_path()
 
             # applying patches
-            self._patch(self.patches)
+            self._patch(self.compil_dir)
 
             # executing pre-hook.
             self._call_hook('pre_setup_hook')
@@ -91,6 +93,7 @@ class Recipe(common.MinitageCommonRecipe):
 
             # executing pre-hook.
             self._call_hook('post_setup_hook')
+            self.logger.info('Installation completed.')
 
         except Exception, e:
             self.logger.error('Compilation error. The package is left as is at %s where '
