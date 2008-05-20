@@ -43,9 +43,38 @@ class MinitageCommonRecipe(object):
         self.uname = os.uname()[0]
         self.offline = buildout.offline
         self.install_from_cache = self.options.get('install-from-cache', None)
+        self.minitage_directory = os.path.abspath(
+            os.path.join(self.buildout['buildout']['directory'], '..', '..')
+        )
+        self.cwd = os.getcwd()
+        self.minitage_section = {}
+        self.minitage_dependencies = []
+        self.minitage_eggs = [] 
+
+        # compilation flags
+        self.includes = self.options.get('includes', '').split()
+        self.libraries = self.options.get('libraries', '').split()
+        self.rpath = self.options.get('rpath', '').split()
 
         # to the python (which will install the egg) version !
         self.executable = options.get('executable', sys.executable)
+        if not 'executable' in options:
+            # if we are an python package
+            # just get the right interpreter for us.
+            # and add ourselves to the deps
+            # to get the cflags/ldflags in env.
+            for pyver in ('2.4', '2.5'):
+                if self.name == 'site-packages-%s' % pyver:
+                    interpreter_path = os.path.join(
+                        self.minitage_directory,
+                        'dependencies', 'python-%s' % pyver, 'parts', 
+                        'part'
+                    )
+                    self.executable = os.path.join(
+                        interpreter_path, 'bin', 'python'
+                    )
+                    self.minitage_dependencies.append(interpreter_path)
+
         self.executable_version = os.popen(
             '%s -c "%s"' % (
                 self.executable ,
@@ -59,6 +88,7 @@ class MinitageCommonRecipe(object):
             'site-packages',
             os.path.join(
                 self.buildout['buildout']['directory'],
+                'parts',
                 self.site_packages)
         )
 
@@ -98,7 +128,7 @@ class MinitageCommonRecipe(object):
         )
 
         # do we install cextension stuff
-        self.build_ext = self.options.get('build_ext', '')
+        self.build_ext = self.options.get('build-ext', '')
 
         # patches stuff
         self.patch_cmd = self.options.get(
@@ -171,10 +201,6 @@ class MinitageCommonRecipe(object):
         #self.pypath.extend(os.environ.get('PYTHONPATH','').split(':'))
         self.pypath.extend(self.options.get('pythonpath', '').split())
 
-        # compilation flags
-        self.includes = self.options.get('includes', '').split()
-        self.libraries = self.options.get('libraries', '').split()
-        self.rpath = self.options.get('rpath', '').split()
 
         # tmp dir
         self.tmp_directory = os.path.join(
@@ -193,17 +219,12 @@ class MinitageCommonRecipe(object):
             shutil.rmtree(self.tmp_directory)
 
         # minitage specific
-        self.minitage_section = {}
-        self.minitage_dependencies = []
-        self.minitage_eggs = []
         if 'minitage' in buildout:
             self.minitage_section = buildout['minitage']
 
         self.minitage_dependencies.extend(
             [os.path.abspath(os.path.join(
-                buildout['buildout']['directory'],
-                '..',
-                '..',
+                self.minitage_directory,
                 'dependencies',
                 s,
                 'parts',
@@ -215,8 +236,8 @@ class MinitageCommonRecipe(object):
 
         self.minitage_eggs.extend(
             [os.path.abspath(os.path.join(
-                buildout['buildout']['directory'],
-                '..', '..', 'eggs', s, 'parts', self.site_packages,
+                self.minitage_directory,
+                'eggs', s, 'parts', self.site_packages,
             )) for s in self.minitage_section.get(
                   'eggs', '').split() if s.strip()]
         )
@@ -437,16 +458,17 @@ class MinitageCommonRecipe(object):
         os.chdir(directory)
         cmds = []
         self._set_py_path()
+        self._set_compilation_flags()
         # compilation phase if we have an extension module.
-        if self.build_ext \
+        # accepting ''
+        if 'build-ext' in self.options\
            or self.options.get('rpath',None) \
            or self.options.get('libraries',None) \
            or self.options.get('includes',None):
-            self._set_compilation_flags()
             cmds.append(
                 '"%s" setup.py build_ext %s' % (
                     self.executable,
-                    self.build_ext.replace('\n',' ')
+                    self.build_ext.replace('\n', '')
                 )
             )
 
