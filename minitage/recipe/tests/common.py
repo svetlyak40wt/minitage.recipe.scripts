@@ -41,6 +41,8 @@ parts=part
 offline=true
 
 [part]
+minitage-eggs = legg1
+minitage-dependencies = ldep2
 pkgconfigpath = 1a 2b
                 3c
 path = 1 2
@@ -227,6 +229,9 @@ class Test(unittest.TestCase):
                         '/eggs/egg2/parts/%s' % (
                            recipe.site_packages
                         ),
+                        '/eggs/legg1/parts/%s' % (
+                            recipe.site_packages
+                        ), 
                         '/eggs/egg3/parts/%s'  % (
                            recipe.site_packages
                         ),
@@ -287,6 +292,7 @@ class Test(unittest.TestCase):
                               )
                           )
                          )
+        self.assertTrue('/dependencies/ldep2/parts/part' in recipe.minitage_dependencies)
         self.assertEquals(os.environ.get('LDFLAGS'),
                           '%s%s' %(
                               ''.join(['  -L%s/lib -Wl,-rpath -Wl,%s/lib ' % (s,s) \
