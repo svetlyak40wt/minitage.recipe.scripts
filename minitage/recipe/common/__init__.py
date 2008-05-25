@@ -112,6 +112,7 @@ class MinitageCommonRecipe(object):
             options['name']
         )
         self.prefix = options['location']
+        self.prefix_separator = options.get('prefix-separator', '=')
 
         self.configure = options.get('configure', 'configure')
 
@@ -203,13 +204,8 @@ class MinitageCommonRecipe(object):
             )
         )
         # conditionnaly add OS specifics patches.
-        self.configure_options += ' '.join(
-            splitstrip(
-                self.options.get(
-                    'configure-options-%s' % (self.uname.lower()),
-                    ''
-                )
-            )
+        self.configure_options += ' %s' % (
+            self.options.get('configure-options-%s' % (self.uname.lower()), '')
         )
 
         #path
@@ -327,8 +323,9 @@ class MinitageCommonRecipe(object):
         os.chdir(self.build_dir)
         if not 'noconfigure' in self.options:
             self._system(
-                    '%s --prefix %s %s' % (
+                    '%s --prefix%s%s %s' % (
                         configure,
+                        self.prefix_separator,
                         self.prefix,
                         self.configure_options
                     )

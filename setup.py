@@ -1,16 +1,17 @@
 import os
 from setuptools import setup, find_packages
-os.chdir(
-    os.path.abspath(
-        os.path.dirname(__file__)
-    )
-)
+setupdir = os.path.abspath(
+    os.path.dirname(__file__)
+) 
+os.chdir(setupdir)
 
 name='minitage.recipe'
 version = '0.0.1'
 
 def read(rnames):
-    return open(os.path.join(os.path.dirname(__file__), rnames)).read()
+    return open(
+        os.path.join(setupdir, rnames)
+    ).read()
 
 setup(
     name=name,
