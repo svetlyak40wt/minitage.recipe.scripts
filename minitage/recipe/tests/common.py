@@ -32,9 +32,12 @@ from minitage.core.common import md5sum
 from minitage.core import core
 
 d = tempfile.mkdtemp()
+# make 2 depth "../.."
+e = os.path.join(d, 'dependencies' ,'a')
+os.makedirs(e)
 tmp = os.path.join(d, 'a')
-fp = os.path.join(d ,'buildout.cfg')
-ft = os.path.join(d ,'buildouttest')
+fp = os.path.join(e ,'buildout.cfg')
+ft = os.path.join(e ,'buildouttest')
 CMMI = """
 [buildout]
 parts=part
@@ -177,13 +180,18 @@ class Test(unittest.TestCase):
         self.assertEquals(recipe.install_targets, ['bar'])
         self.assertEquals(recipe.tmp_directory,
                           os.path.join(
-                              d
-                              ,'__minitage__666__tmp'
+                              d,
+                              'dependencies',
+                              'a',
+                              '__minitage__666__tmp'
                           )
                          )
         self.assertEquals(recipe.prefix,
                           os.path.join(
-                              d, 'parts', 'part'
+                              d, 
+                              'dependencies',
+                              'a',
+                              'parts', 'part'
                           )
                          )
 
@@ -281,23 +289,33 @@ class Test(unittest.TestCase):
         recipe._set_compilation_flags()
         self.assertEquals(os.environ.get('LD_RUN_PATH')
                           , ':a:b:c:d:e:f:%s/lib'% (
-                              '/lib:'.join(recipe.minitage_dependencies
+                              '/lib:'.join(recipe.minitage_dependencies+\
+                                      recipe.minitage_eggs         
                                            + [recipe.prefix])
                           )
                          )
         self.assertEquals(os.environ.get('CFLAGS'),
                           '  -Ia   -Ib   -Ic   -Id   -Ie   -If %s ' % (
                               '  -I%s/include' % (
-                                  '/include   -I'.join(recipe.minitage_dependencies)
+                                  '/include   -I'.join(
+                                      recipe.minitage_dependencies+\
+                                      recipe.minitage_eggs
+                                  )
                               )
                           )
                          )
-        self.assertTrue('/dependencies/ldep2/parts/part' in recipe.minitage_dependencies)
+        self.assertTrue(os.path.join(
+            d,
+            'dependencies',
+            'ldep2',
+            'parts',
+            'part') in recipe.minitage_dependencies)
         self.assertEquals(os.environ.get('LDFLAGS'),
                           '%s%s' %(
                               ''.join(['  -L%s/lib -Wl,-rpath -Wl,%s/lib ' % (s,s) \
                                        for s in ['a','b','c','d','e','f'] \
-                                       + recipe.minitage_dependencies + [recipe.prefix]]),
+                                       + recipe.minitage_dependencies +
+                                       recipe.minitage_eggs + [recipe.prefix]]),
                               '  -mmacosx-version-min=10.5.0 ',
                           )
                          )
@@ -530,7 +548,7 @@ chmod +x configure
         self.assertEquals(l, 1)
         self.assertTrue(
             os.path.isfile(
-                os.path.join(d, 'bin', 's')
+                os.path.join(d, 'dependencies', 'a', 'bin', 's')
             )
         )
 

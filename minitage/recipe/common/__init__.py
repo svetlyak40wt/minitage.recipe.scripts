@@ -26,7 +26,7 @@ import tempfile
 import urllib2
 import urlparse
 
-from minitage.core.common import get_from_cache, system
+from minitage.core.common import get_from_cache, system, splitstrip
 from minitage.core.unpackers.interfaces import IUnpackerFactory
 from minitage.core import core
 from minitage.core import interfaces
@@ -49,12 +49,12 @@ class MinitageCommonRecipe(object):
         self.cwd = os.getcwd()
         self.minitage_section = {}
         self.minitage_dependencies = []
-        self.minitage_eggs = [] 
+        self.minitage_eggs = []
 
         # compilation flags
-        self.includes = self.options.get('includes', '').split()
-        self.libraries = self.options.get('libraries', '').split()
-        self.rpath = self.options.get('rpath', '').split()
+        self.includes = splitstrip(self.options.get('includes', ''))
+        self.libraries = splitstrip(self.options.get('libraries', ''))
+        self.rpath = splitstrip(self.options.get('rpath', ''))
 
         # to the python (which will install the egg) version !
         self.executable = options.get('executable', sys.executable)
@@ -68,13 +68,20 @@ class MinitageCommonRecipe(object):
                 if self.name == 'site-packages-%s' % pyver:
                     interpreter_path = os.path.join(
                         self.minitage_directory,
-                        'dependencies', 'python-%s' % pyver, 'parts', 
+                        'dependencies', 'python-%s' % pyver, 'parts',
                         'part'
                     )
                     self.executable = os.path.join(
                         interpreter_path, 'bin', 'python'
                     )
                     self.minitage_dependencies.append(interpreter_path)
+                    self.includes.append(
+                        os.path.join(
+                            interpreter_path,
+                            'include',
+                            'python%s' % pyver
+                        )
+                    )
 
         self.executable_version = os.popen(
             '%s -c "%s"' % (
@@ -147,10 +154,12 @@ class MinitageCommonRecipe(object):
         self.uname=os.uname()[0]
         # conditionnaly add OS specifics patches.
         self.patches.extend(
-            self.options.get(
-                '%s-patches' % (self.uname.lower()),
-                ''
-            ).split()
+            splitstrip(
+                self.options.get(
+                    '%s-patches' % (self.uname.lower()),
+                    ''
+                )
+            )
         )
 
         # if gmake is setted. taking it as the make cmd !
@@ -158,8 +167,8 @@ class MinitageCommonRecipe(object):
         # we have to make it only in non linux env.
         # if wehave gmake setted, use gmake too.
         gnumake = 'make'
-        if self.uname != 'Linux' \
-           or self.buildout.get('part', {}).get('gmake', None):
+        if self.buildout.get('part', {}).get('gmake', None)\
+           and self.uname != 'Linux':
             gnumake = 'gmake'
         self.make_cmd = self.options.get('make-binary', gnumake).strip()
 
@@ -167,40 +176,57 @@ class MinitageCommonRecipe(object):
         # if 'make-targets'  present, we get it line by line
         # and all target must be specified
         # We will default to make '' and make install
-        self.make_targets = self.options.get(
-            'make-targets',
-            '\n'
-        ).split('\n')
-        self.install_targets = self.options.get(
-            'make-install-targets',
-            'install'
-        ).split('\n')
+        self.make_targets = splitstrip(
+            self.options.get(
+                'make-targets',
+                ' '
+            )
+            , '\n'
+        )
+        if not self.make_targets:
+            self.make_targets = ['']
+
+        self.install_targets =  splitstrip(
+            self.options.get(
+                'make-install-targets',
+                'install'
+            )
+            , '\n'
+        )
 
         # configuration options
         self.configure_options = ' '.join(
-            self.options.get(
-                'configure-options',
-                '').split()
+            splitstrip(
+                self.options.get(
+                    'configure-options',
+                    '')
+            )
         )
         # conditionnaly add OS specifics patches.
         self.configure_options += ' '.join(
-            self.options.get(
-                'configure-options-%s' % (self.uname.lower()),
-                ''
-            ).split()
+            splitstrip(
+                self.options.get(
+                    'configure-options-%s' % (self.uname.lower()),
+                    ''
+                )
+            )
         )
 
         #path
-        self.path = self.options.get('path', '').split()
+        self.path = splitstrip(self.options.get('path', ''))
 
         # pkgconfigpath
-        self.pkgconfigpath = self.options.get('pkgconfigpath', '').split()
+        self.pkgconfigpath = splitstrip(self.options.get('pkgconfigpath', ''))
 
         # python path
         self.pypath = [self.buildout['buildout']['directory'], self.options['location']]
         self.pypath.extend(self.pypath)
         #self.pypath.extend(os.environ.get('PYTHONPATH','').split(':'))
-        self.pypath.extend(self.options.get('pythonpath', '').split())
+        self.pypath.extend(
+            splitstrip(
+                self.options.get('pythonpath', '')
+            )
+        )
 
 
         # tmp dir
@@ -211,13 +237,6 @@ class MinitageCommonRecipe(object):
 
         # build directory
         self.build_dir = self.options.get('build-dir', None)
-
-        # cleaning if we have a prior compilation step.
-        if os.path.isdir(self.tmp_directory):
-            self.logger.info(
-                'Removing pre existing temporay directory: %s' % self.tmp_directory
-            )
-            shutil.rmtree(self.tmp_directory)
 
         # minitage specific
         # we will search for a [minitage : deps/eggs]
@@ -235,7 +254,7 @@ class MinitageCommonRecipe(object):
 
         self.minitage_section['eggs'] = '%s %s' % (
                 self.minitage_section.get('eggs', ' '),
-                self.options.get('minitage-eggs', ' ') 
+                self.options.get('minitage-eggs', ' ')
         )
 
         self.minitage_dependencies.extend(
@@ -245,20 +264,24 @@ class MinitageCommonRecipe(object):
                 s,
                 'parts',
                 'part'
-            )) for s in self.minitage_section.get(
-                'dependencies', ''
-            ).split() if s.strip()]
+            )) for s in splitstrip(
+                self.minitage_section.get( 'dependencies', ''))]
         )
 
         self.minitage_eggs.extend(
             [os.path.abspath(os.path.join(
                 self.minitage_directory,
                 'eggs', s, 'parts', self.site_packages,
-            )) for s in self.minitage_section.get(
-                  'eggs', '').split() if s.strip()]
+            )) for s in splitstrip(
+                self.minitage_section.get('eggs', ''))]
         )
 
-        for s in self.minitage_dependencies:
+        # sometime we install system libraries as eggs because they depend on
+        # a particular python version !
+        # There is there we suceed in getting their libraries/include into
+        # enviroenmment by dealing with them along with classical
+        # system dependencies.
+        for s in self.minitage_dependencies + self.minitage_eggs:
             self.includes.append(os.path.join(s, 'include'))
             self.libraries.append(os.path.join(s, 'lib'))
             self.rpath.append(os.path.join(s, 'lib'))
@@ -268,6 +291,14 @@ class MinitageCommonRecipe(object):
 
         for s in self.minitage_eggs + [self.site_packages_path]:
             self.pypath.append(s)
+
+        # cleaning if we have a prior compilation step.
+        if os.path.isdir(self.tmp_directory):
+            self.logger.info(
+                'Removing pre existing temporay directory: %s' % self.tmp_directory
+            )
+            shutil.rmtree(self.tmp_directory)
+
 
     def _choose_configure(self, compile_dir):
         """configure magic to runne with
@@ -296,7 +327,7 @@ class MinitageCommonRecipe(object):
         os.chdir(self.build_dir)
         if not 'noconfigure' in self.options:
             self._system(
-                    '%s --prefix=%s %s' % (
+                    '%s --prefix %s %s' % (
                         configure,
                         self.prefix,
                         self.configure_options
