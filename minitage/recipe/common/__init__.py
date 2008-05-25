@@ -63,6 +63,7 @@ class MinitageCommonRecipe(object):
             # just get the right interpreter for us.
             # and add ourselves to the deps
             # to get the cflags/ldflags in env.
+            #
             for pyver in ('2.4', '2.5'):
                 if self.name == 'site-packages-%s' % pyver:
                     interpreter_path = os.path.join(
@@ -219,8 +220,23 @@ class MinitageCommonRecipe(object):
             shutil.rmtree(self.tmp_directory)
 
         # minitage specific
+        # we will search for a [minitage : deps/eggs]
+        # and for [part : minitage-dependencies/minitage-eggs]
+        # to get the needed dependencies and put their
+        # CFLAGS / LDFLAGS / RPATH / PYTHONPATH / PKGCONFIGPATH
+        # into the env.
         if 'minitage' in buildout:
             self.minitage_section = buildout['minitage']
+
+        self.minitage_section['dependencies'] = '%s %s' % (
+                self.minitage_section.get('dependencies', ' '),
+                self.options.get('minitage-dependencies', ' ')
+                )
+
+        self.minitage_section['eggs'] = '%s %s' % (
+                self.minitage_section.get('eggs', ' '),
+                self.options.get('minitage-eggs', ' ') 
+        )
 
         self.minitage_dependencies.extend(
             [os.path.abspath(os.path.join(
