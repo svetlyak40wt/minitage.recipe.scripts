@@ -114,6 +114,9 @@ class MinitageCommonRecipe(object):
         self.prefix = options['location']
         self.prefix_separator = options.get('prefix-separator', '=')
 
+        if self.prefix_separator == '':
+            self.prefix_separator = ' '
+
         self.configure = options.get('configure', 'configure')
 
         # If 'download-cache' has not been specified,
