@@ -112,6 +112,8 @@ class Recipe(common.MinitageCommonRecipe):
 
         shutil.rmtree(self.tmp_directory)
 
+        os.chdir(self.buildout['buildout']['directory'])
+
         return []
 
     def update(self):
