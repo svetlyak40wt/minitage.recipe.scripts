@@ -54,7 +54,7 @@ class Recipe(common.MinitageCommonRecipe):
         # initialise working directories
         for path in [self.prefix, self.tmp_directory]:
             if not os.path.exists(path):
-                os.makedirs(path)  
+                os.makedirs(path)
         try:
             self.logger.info('Installing python package.')
             # downloading
@@ -66,6 +66,15 @@ class Recipe(common.MinitageCommonRecipe):
             # get default compilation directory
             self.compil_dir = self._get_compil_dir(self.tmp_directory)
             self.options['compile-directory'] = self.compil_dir
+
+            # build-dir behaviour is significantly different that in cmmi,
+            # build-dir is where we have the setup.py if it is not at
+            # the top root of the archive.
+            if self.build_dir:
+                self.compil_dir = os.path.join(
+                    self.compil_dir,
+                    self.build_dir
+                )
 
             # set path
             self._set_path()
