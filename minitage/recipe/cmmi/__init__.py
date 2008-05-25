@@ -38,6 +38,7 @@ class Recipe(common.MinitageCommonRecipe):
             if not os.path.exists(path):
                 os.makedirs(path)
         try:
+            cwd = os.getcwd()
             # downloading or get the path
             # in the cache if we are offline
             fname = self._download()
@@ -87,6 +88,9 @@ class Recipe(common.MinitageCommonRecipe):
                 if os.path.isdir(path):
                     shutil.rmtree(path)
 
+            # regaining original cwd in case we changed build directory
+            # during build process.
+            os.chdir(cwd)
             self.logger.info('Completed install.')
         except Exception, e:
             self.logger.error('Compilation error. The package is left as is at %s where '
