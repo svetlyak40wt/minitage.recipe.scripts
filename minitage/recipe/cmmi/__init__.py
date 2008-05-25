@@ -58,6 +58,9 @@ class Recipe(common.MinitageCommonRecipe):
             # set compile path
             self._set_compilation_flags()
 
+            # set pypath
+            self._set_py_path()
+
             # choose configure
             self.configure = self._choose_configure(self.compil_dir)
             self.options['compile-directory'] = self.build_dir
