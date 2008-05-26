@@ -47,6 +47,7 @@ class MinitageCommonRecipe(object):
             os.path.join(self.buildout['buildout']['directory'], '..', '..')
         )
         self.cwd = os.getcwd()
+        self.str_minibuild = os.path.split(self.cwd)[1]
         self.minitage_section = {}
         self.minitage_dependencies = []
         self.minitage_eggs = []
@@ -238,8 +239,10 @@ class MinitageCommonRecipe(object):
         self.build_dir = self.options.get('build-dir', None)
 
         # minitage specific
-        # we will search for a [minitage : deps/eggs]
-        # and for [part : minitage-dependencies/minitage-eggs]
+        # we will search for (priority order)
+        # * [part : minitage-dependencies/minitage-eggs]
+        # * a [minitage : deps/eggs]
+        # * the minibuild dependencies key.
         # to get the needed dependencies and put their
         # CFLAGS / LDFLAGS / RPATH / PYTHONPATH / PKGCONFIGPATH
         # into the env.
@@ -247,14 +250,57 @@ class MinitageCommonRecipe(object):
             self.minitage_section = buildout['minitage']
 
         self.minitage_section['dependencies'] = '%s %s' % (
+                self.options.get('minitage-dependencies', ' '),
                 self.minitage_section.get('dependencies', ' '),
-                self.options.get('minitage-dependencies', ' ')
-                )
+        )
 
         self.minitage_section['eggs'] = '%s %s' % (
+                self.options.get('minitage-eggs', ' '),
                 self.minitage_section.get('eggs', ' '),
-                self.options.get('minitage-eggs', ' ')
         )
+
+        # try to get dependencies from the minibuild
+        #  * add them to deps if dependencies
+        #  * add them to eggs if they are eggs
+        # but be non bloquant in errors.
+        self.minibuild = None
+        self.minimerge = None
+        minibuild_dependencies = []
+        minibuild_eggs = []
+        minitage_config = os.path.join(
+            self.minitage_directory, 'etc', 'minimerge.cfg')
+        try:
+            self.minimerge = core.Minimerge({
+                'nolog' : True,
+                'config': minitage_config
+                }
+            )
+        except:
+            message = 'Problem when intializing minimerge instance with %s config.'
+            self.logger.debug(message % minitage_config)
+
+        try:
+            self.minibuild = self.minimerge._find_minibuild(
+                self.str_minibuild
+            )
+        except:
+            message = 'Problem looking for \'%s\' minibuild'
+            self.logger.debug(message % self.str_minibuild)
+
+        if self.minibuild:
+            for dep in self.minibuild.dependencies :
+                m = None
+                try:
+                    m = self.minimerge._find_minibuild(dep)
+                except Exception, e:
+                    message = 'Problem looking for \'%s\' minibuild'
+                    self.logger.debug(message % self.str_minibuild)
+                if m:
+                    if m.category == 'eggs':
+                        minibuild_eggs.append(dep)
+                    if m.category == 'dependencies':
+                        minibuild_dependencies.append(dep)
+
 
         self.minitage_dependencies.extend(
             [os.path.abspath(os.path.join(
@@ -264,7 +310,8 @@ class MinitageCommonRecipe(object):
                 'parts',
                 'part'
             )) for s in splitstrip(
-                self.minitage_section.get( 'dependencies', ''))]
+                self.minitage_section.get('dependencies', '')
+            ) + minibuild_dependencies ]
         )
 
         self.minitage_eggs.extend(
@@ -272,7 +319,8 @@ class MinitageCommonRecipe(object):
                 self.minitage_directory,
                 'eggs', s, 'parts', self.site_packages,
             )) for s in splitstrip(
-                self.minitage_section.get('eggs', ''))]
+                self.minitage_section.get('eggs', '')
+            ) + minibuild_eggs]
         )
 
         # sometime we install system libraries as eggs because they depend on
