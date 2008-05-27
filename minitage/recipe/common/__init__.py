@@ -38,18 +38,49 @@ class MinitageCommonRecipe(object):
     Downloads and installs a distutils Python distribution.
     """
     def __init__(self, buildout, name, options):
+        """__init__.
+        The code is voulantary not splitted
+        because i want to use this object as an api for the other
+        recipes.
+        """
         self.logger = logging.getLogger(__logger__)
         self.buildout, self.name, self.options = buildout, name, options
-        self.uname = os.uname()[0]
         self.offline = buildout.offline
         self.install_from_cache = self.options.get('install-from-cache', None)
+
+        # url from
+        self.url = self.options['url']
+        # maybe md5
+        self.md5 = self.options.get('md5sum', None)
+
+        # system variables
+        self.uname = os.uname()[0]
+        self.cwd = os.getcwd()
         self.minitage_directory = os.path.abspath(
             os.path.join(self.buildout['buildout']['directory'], '..', '..')
         )
-        self.cwd = os.getcwd()
+        # destination
+        options['location'] = os.path.join(
+            buildout['buildout']['parts-directory'],
+            options['name']
+        )
+        self.prefix = options['location']
+
+        # configure script for cmmi packages
+        self.configure = options.get('configure', 'configure')
+        # prefix separtor in ./configure --prefix%SEPARATOR%path
+        self.prefix_separator = options.get('prefix-separator', '=')
+        if self.prefix_separator == '':
+            self.prefix_separator = ' '
+
+        # if we are installing in minitage, try to get the
+        # minibuild name and object there.
         self.str_minibuild = os.path.split(self.cwd)[1]
         self.minitage_section = {}
+
+        # system/libraries dependencies
         self.minitage_dependencies = []
+        # distutils python stuff
         self.minitage_eggs = []
 
         # compilation flags
@@ -57,7 +88,11 @@ class MinitageCommonRecipe(object):
         self.libraries = splitstrip(self.options.get('libraries', ''))
         self.rpath = splitstrip(self.options.get('rpath', ''))
 
-        # to the python (which will install the egg) version !
+        # Defining the python interpreter used to install python stuff.
+        # using the one defined in the key 'executable'
+        # fallback to sys.executable or
+        # python-2.4 if self.name = site-packages-2.4
+        # python-2.5 if self.name = site-packages-2.5
         self.executable = options.get('executable', sys.executable)
         if not 'executable' in options:
             # if we are an python package
@@ -65,7 +100,7 @@ class MinitageCommonRecipe(object):
             # and add ourselves to the deps
             # to get the cflags/ldflags in env.
             #
-            for pyver in ('2.4', '2.5'):
+            for pyver in core.PYTHON_VERSIONS:
                 if self.name == 'site-packages-%s' % pyver:
                     interpreter_path = os.path.join(
                         self.minitage_directory,
@@ -84,6 +119,7 @@ class MinitageCommonRecipe(object):
                         )
                     )
 
+        # which python version are we using ?
         self.executable_version = os.popen(
             '%s -c "%s"' % (
                 self.executable ,
@@ -100,25 +136,6 @@ class MinitageCommonRecipe(object):
                 'parts',
                 self.site_packages)
         )
-
-        # url from
-        self.url = self.options['url']
-
-        # maybe md5
-        self.md5 = self.options.get('md5sum', None)
-
-        # destination
-        options['location'] = os.path.join(
-            buildout['buildout']['parts-directory'],
-            options['name']
-        )
-        self.prefix = options['location']
-        self.prefix_separator = options.get('prefix-separator', '=')
-
-        if self.prefix_separator == '':
-            self.prefix_separator = ' '
-
-        self.configure = options.get('configure', 'configure')
 
         # If 'download-cache' has not been specified,
         # fallback to [buildout]['downloads']
@@ -155,8 +172,6 @@ class MinitageCommonRecipe(object):
             ).split()
         )
         self.patches = self.options.get('patches', '').split()
-        # os name.
-        self.uname=os.uname()[0]
         # conditionnaly add OS specifics patches.
         self.patches.extend(
             splitstrip(
@@ -209,10 +224,11 @@ class MinitageCommonRecipe(object):
         )
         # conditionnaly add OS specifics patches.
         self.configure_options += ' %s' % (
-            self.options.get('configure-options-%s' % (self.uname.lower()), '')
+            self.options.get('configure-options-%s' % (
+                self.uname.lower()), '')
         )
 
-        #path
+        # path we will put in env. at build time
         self.path = splitstrip(self.options.get('path', ''))
 
         # pkgconfigpath
@@ -221,13 +237,11 @@ class MinitageCommonRecipe(object):
         # python path
         self.pypath = [self.buildout['buildout']['directory'], self.options['location']]
         self.pypath.extend(self.pypath)
-        #self.pypath.extend(os.environ.get('PYTHONPATH','').split(':'))
         self.pypath.extend(
             splitstrip(
                 self.options.get('pythonpath', '')
             )
         )
-
 
         # tmp dir
         self.tmp_directory = os.path.join(
@@ -300,7 +314,6 @@ class MinitageCommonRecipe(object):
                         minibuild_eggs.append(dep)
                     if m.category == 'dependencies':
                         minibuild_dependencies.append(dep)
-
 
         self.minitage_dependencies.extend(
             [os.path.abspath(os.path.join(
