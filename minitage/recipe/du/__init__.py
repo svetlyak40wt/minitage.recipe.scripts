@@ -119,4 +119,60 @@ class Recipe(common.MinitageCommonRecipe):
     def update(self):
         pass
 
+    def _build_python_package(self, directory):
+        """Compile a python package."""
+        cwd = os.getcwd()
+        os.chdir(directory)
+        cmds = []
+        self._set_py_path()
+        self._set_compilation_flags()
+        # compilation phase if we have an extension module.
+        # accepting ''
+        if 'build-ext' in self.options\
+           or self.options.get('rpath',None) \
+           or self.options.get('libraries',None) \
+           or self.options.get('includes',None):
+            cmds.append(
+                '"%s" setup.py build_ext %s' % (
+                    self.executable,
+                    self.build_ext.replace('\n', '')
+                )
+            )
 
+        # build package
+        cmds.append('"%s" setup.py build' % (self.executable))
+
+        for cmd in cmds:
+            self._system(cmd)
+
+        os.chdir(cwd)
+
+    def _install_python_package(self, directory):
+        """Install a python package."""
+        self._set_py_path()
+        cmd = '"%s" setup.py install %s  %s %s' % (
+            self.executable,
+            '--install-purelib="%s"' % self.site_packages_path,
+            '--install-platlib="%s"' % self.site_packages_path,
+            '--prefix=%s' % self.buildout['buildout']['directory']
+        )
+        # moving and restoring if problem :)
+        cwd = os.getcwd()
+        os.chdir(directory)
+        tmp = '%s.old' % self.site_packages_path
+        if os.path.exists(self.site_packages_path):
+            shutil.move(self.site_packages_path, tmp)
+
+        if not self.options.get('noinstall', None):
+            try:
+                os.makedirs(self.site_packages_path)
+                self._system(cmd)
+            except Exception, e:
+                shutil.rmtree(self.site_packages_path)
+                shutil.move(tmp, self.site_packages_path)
+                raise core.MinimergeError('PythonPackage Install failed:\n\t%s' % e)
+        if os.path.exists(tmp):
+            shutil.rmtree(tmp)
+        os.chdir(cwd)
+
+    
