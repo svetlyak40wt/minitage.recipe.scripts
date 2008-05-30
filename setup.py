@@ -58,6 +58,7 @@ setup(
         'zc.buildout' : [
             'default = %s:Recipe' % name,
             'du = %s:Recipe' % 'minitage.recipe.du',
+            'egg = %s:Recipe' % 'minitage.recipe.egg',
             'zdu = %s:Recipe' % 'minitage.recipe.du',
             'cmmi = %s:Recipe' % 'minitage.recipe.cmmi',
         ]
