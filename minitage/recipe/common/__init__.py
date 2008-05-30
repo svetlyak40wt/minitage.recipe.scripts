@@ -25,7 +25,10 @@ import sys
 import tempfile
 import urllib2
 import urlparse
+import pkg_resources
 
+
+import zc.buildout.easy_install
 from minitage.core.common import get_from_cache, system, splitstrip
 from minitage.core.unpackers.interfaces import IUnpackerFactory
 from minitage.core import core
@@ -50,6 +53,7 @@ class MinitageCommonRecipe(object):
 
         # url from
         self.url = self.options['url']
+
         # maybe md5
         self.md5 = self.options.get('md5sum', None)
 
@@ -349,8 +353,10 @@ class MinitageCommonRecipe(object):
             self.path.append(os.path.join(s, 'bin'))
             self.path.append(os.path.join(s, 'sbin'))
 
-        for s in self.minitage_eggs + [self.site_packages_path]:
-            self.pypath.append(s)
+        for s in self.minitage_eggs \
+                 + [self.site_packages_path] \
+                 + [self.buildout['buildout']['eggs-directory']] :
+          self.pypath.append(s)
 
         # cleaning if we have a prior compilation step.
         if os.path.isdir(self.tmp_directory):
@@ -430,11 +436,14 @@ class MinitageCommonRecipe(object):
              shutil.rmtree(tmp)
         os.chdir(cwd)
 
-    def _download(self):
+    def _download(self, url=None):
         """Download the archive."""
         self.logger.info('Download archive')
+        if not url:
+            url = self.url
+
         return get_from_cache(
-            self.url,
+            url,
             self.download_cache,
             self.logger,
             self.md5,
@@ -505,23 +514,31 @@ class MinitageCommonRecipe(object):
                 os.environ.get('CXXFLAGS',' ')] + b_cflags
             )
 
-    def _unpack(self, fname):
+    def _unpack(self, fname, directory=None):
         """Unpack something"""
         self.logger.info('Unpacking')
+        if not directory:
+            directory = self.tmp_directory
         unpack_f = IUnpackerFactory()
         u = unpack_f(fname)
-        u.unpack(fname, self.tmp_directory)
+        u.unpack(fname, directory)
 
-    def _patch(self, directory):
+    def _patch(self, directory, patch_cmd=None, patch_options=None, patches =None):
         """Aplying patches in pwd directory."""
-        if self.patches:
+        if not patch_cmd:
+            patch_cmd = self.patch_cmd
+        if not patch_options:
+            patch_options = self.patch_options
+        if not patches:
+            patches = self.patches
+        if patches:
             self.logger.info('Applying patches.')
             cwd = os.getcwd()
             os.chdir(directory)
-            for patch in self.patches:
+            for patch in patches:
                  system('%s -t %s < %s' %
-                        (self.patch_cmd,
-                         self.patch_options,
+                        (patch_cmd,
+                         patch_options,
                          patch),
                         self.logger
                        )
@@ -560,66 +577,11 @@ class MinitageCommonRecipe(object):
             del contents[contents. index('.download')]
         return os.path.join(directory, contents[0])
 
-    def _build_python_package(self, directory):
-        """Compile a python package."""
-        cwd = os.getcwd()
-        os.chdir(directory)
-        cmds = []
-        self._set_py_path()
-        self._set_compilation_flags()
-        # compilation phase if we have an extension module.
-        # accepting ''
-        if 'build-ext' in self.options\
-           or self.options.get('rpath',None) \
-           or self.options.get('libraries',None) \
-           or self.options.get('includes',None):
-            cmds.append(
-                '"%s" setup.py build_ext %s' % (
-                    self.executable,
-                    self.build_ext.replace('\n', '')
-                )
-            )
-
-        # build package
-        cmds.append('"%s" setup.py build' % (self.executable))
-
-        for cmd in cmds:
-            self._system(cmd)
-
-        os.chdir(cwd)
-
-    def _install_python_package(self, directory):
-        """Install a python package."""
-        self._set_py_path()
-        cmd = '"%s" setup.py install %s  %s %s' % (
-            self.executable,
-            '--install-purelib="%s"' % self.site_packages_path,
-            '--install-platlib="%s"' % self.site_packages_path,
-            '--prefix=%s' % self.buildout['buildout']['directory']
-        )
-        # moving and restoring if problem :)
-        cwd = os.getcwd()
-        os.chdir(directory)
-        tmp = '%s.old' % self.site_packages_path
-        if os.path.exists(self.site_packages_path):
-            shutil.move(self.site_packages_path, tmp)
-
-        if not self.options.get('noinstall', None):
-            try:
-                os.makedirs(self.site_packages_path)
-                self._system(cmd)
-            except Exception, e:
-                shutil.rmtree(self.site_packages_path)
-                shutil.move(tmp, self.site_packages_path)
-                raise core.MinimergeError('PythonPackage Install failed:\n\t%s' % e)
-        if os.path.exists(tmp):
-            shutil.rmtree(tmp)
-        os.chdir(cwd)
-
     def _system(self, cmd):
         """Running a command."""
         self.logger.info('Running %s' % cmd)
         ret = os.system(cmd)
         if ret:
             raise  core.MinimergeError('Command failed: %s' % cmd)
+
 # vim:set et sts=4 ts=4 tw=80:
