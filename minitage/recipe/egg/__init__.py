@@ -161,7 +161,8 @@ class Recipe(common.MinitageCommonRecipe):
         into the eggs cache."""
         # where we put the builded  eggs
         tmp = os.path.join(self.tmp_directory, 'eggs')
-        os.makedirs(tmp)
+        if not os.path.isdir(tmp):
+            os.makedirs(tmp)
         # maybe extract time
         location = dist.location
         if not os.path.isdir(location):
