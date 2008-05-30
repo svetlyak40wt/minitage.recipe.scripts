@@ -52,7 +52,7 @@ class MinitageCommonRecipe(object):
         self.install_from_cache = self.options.get('install-from-cache', None)
 
         # url from
-        self.url = self.options['url']
+        self.url = self.options.get('url', None)
 
         # maybe md5
         self.md5 = self.options.get('md5sum', None)
@@ -66,7 +66,7 @@ class MinitageCommonRecipe(object):
         # destination
         options['location'] = os.path.join(
             buildout['buildout']['parts-directory'],
-            options['name']
+            options.get('name', self.name)
         )
         self.prefix = options['location']
 
