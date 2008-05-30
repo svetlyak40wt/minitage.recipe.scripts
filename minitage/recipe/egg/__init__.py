@@ -262,6 +262,8 @@ class Recipe(common.MinitageCommonRecipe):
             
             try:
                 sys.stdout.flush() # We want any pending output first
+                if self.uname == 'Darwin':
+                    os.environ['MACOSX_DEPLOYMENT_TARGET'] = '10.5'
                 largs += (dict(os.environ),)
                 exit_code = os.spawnle(
                     os.P_WAIT,
