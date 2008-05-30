@@ -24,12 +24,17 @@ import shutil
 
 import zc.buildout
 from zc.buildout.buildout import Buildout
+import pkg_resources
+import setuptools
+
 from minitage.core.makers.interfaces import IMakerFactory
 from minitage.recipe.common import MinitageCommonRecipe
-from minitage.recipe.du   import Recipe as EGGSRecipe
+from minitage.recipe.egg  import Recipe as EGGSRecipe
+from minitage.recipe.du   import Recipe as DURecipe
 from minitage.recipe.cmmi import Recipe as CMMIRecipe
 from minitage.core.common import md5sum
 from minitage.core import core
+from minitage.core.tests.test_common import write
 
 d = tempfile.mkdtemp()
 # make 2 depth "../.."
@@ -44,6 +49,7 @@ parts=part
 offline=true
 
 [part]
+eggs = elementtree
 minitage-eggs = legg1
 minitage-dependencies = ldep2
 pkgconfigpath = 1a 2b
@@ -101,18 +107,16 @@ install:
 def make_fakeegg(tmp):
     setup = """
 import os
-from setuptools import setup, Extension
+from setuptools import setup, Extension, find_packages
 setup(name='foo',
             version='1.0',
             scripts=['s'],
             author='foo',
             zip_safe = False,
             ext_modules=[Extension('bar', ['bar.c'])],
-            packages=[os.path.join(
-                            os.path.dirname(__file__), 'foo'
-                            )
-                    ]
+            packages=find_packages()
 )
+
 """
     c = """
 #include <Python.h>
@@ -188,7 +192,7 @@ class Test(unittest.TestCase):
                          )
         self.assertEquals(recipe.prefix,
                           os.path.join(
-                              d, 
+                              d,
                               'dependencies',
                               'a',
                               'parts', 'part'
@@ -239,7 +243,7 @@ class Test(unittest.TestCase):
                         ),
                         '/eggs/legg1/parts/%s' % (
                             recipe.site_packages
-                        ), 
+                        ),
                         '/eggs/egg3/parts/%s'  % (
                            recipe.site_packages
                         ),
@@ -290,7 +294,7 @@ class Test(unittest.TestCase):
         self.assertEquals(os.environ.get('LD_RUN_PATH')
                           , ':a:b:c:d:e:f:%s/lib'% (
                               '/lib:'.join(recipe.minitage_dependencies+\
-                                      recipe.minitage_eggs         
+                                      recipe.minitage_eggs
                                            + [recipe.prefix])
                           )
                          )
@@ -357,11 +361,14 @@ class Test(unittest.TestCase):
         bd = Buildout(fp, [])
         bd.offline = False
         recipe = MinitageCommonRecipe(bd, '666', bd['part'])
-        recipe._unpack(os.path.join(tmp, 'toto.tbz2'))
+        recipe.tmp_directory = tmp
+        recipe._unpack(os.path.join(
+            recipe.tmp_directory,
+            'toto.tbz2')
+        )
         recipe.patch_cmd = 'patch'
         recipe.patch_options = ''
         recipe.patches = [os.path.join(tmp, 'patch.diff')]
-        recipe.tmp_directory = tmp
         recipe._patch(recipe.tmp_directory)
         self.assertEquals(
             open(
@@ -525,7 +532,7 @@ chmod +x configure
         make_fakeegg(tmp)
         bd = Buildout(fp, [])
         bd.offline = False
-        recipe = MinitageCommonRecipe(bd, '666', bd['part'])
+        recipe = DURecipe(bd, '666', bd['part'])
         recipe._build_python_package(p)
         self.assertTrue(os.path.isdir(
             os.path.join(p,'build'))
@@ -537,7 +544,7 @@ chmod +x configure
         make_fakeegg(tmp)
         bd = Buildout(fp, [])
         bd.offline = False
-        recipe = MinitageCommonRecipe(bd, '666', bd['part'])
+        recipe = DURecipe(bd, '666', bd['part'])
         recipe._build_python_package(p)
         recipe._install_python_package(p)
         self.assertTrue(os.path.isdir(
@@ -576,14 +583,14 @@ chmod +x configure
                 os.path.join(tmp,file)
             )
 
-    def testDu(self):
-        """testDu."""
+    def testRecipeDu(self):
+        """testRecipeDu."""
         p = tmp
         make_fakeegg(tmp)
         os.system('cd %s;tar cjvf b.tbz2 a' % d)
         bd = Buildout(fp, [])
         bd.offline = False
-        recipe = EGGSRecipe(bd, '666', bd['part'])
+        recipe = DURecipe(bd, '666', bd['part'])
         recipe.url = 'file://%s/b.tbz2' % d
         recipe.md5 = None
         recipe.patches = []
@@ -596,7 +603,7 @@ chmod +x configure
         os.system('cd %s;tar cjvf b.tbz2 a' % d)
         bd = Buildout(fp, [])
         bd.offline = False
-        recipe = EGGSRecipe(bd, '666', bd['part'])
+        recipe = DURecipe(bd, '666', bd['part'])
         recipe.url = 'invalid'
         recipe.md5 = None
         recipe.patches = []
@@ -606,12 +613,185 @@ chmod +x configure
             recipe.install()
         except:
             pass
-        recipe2 = EGGSRecipe(bd, '666', bd['part'])
+        recipe2 = DURecipe(bd, '666', bd['part'])
         recipe2.url = 'file://%s/b.tbz2' % d
         recipe2.md5 = None
         recipe2.patches = []
         recipe2.install()
         self.assertTrue(os.path.join(tmp, 'bin', 's'))
+
+    def testInstallElementtree(self):
+        """testInstallElementtree."""
+        p = tmp
+        a = os.path.join(p, 'aaaaaaaaaa')
+        cache  = os.path.join(p, 'c')
+        dcache = os.path.join(p, 'd')
+        make_fakeegg(tmp)
+        for dir in a, cache, dcache:
+            os.makedirs(dir)
+        bd = Buildout(fp, [])
+        bd.offline = False
+        recipe = EGGSRecipe(bd, '666', bd['part'])
+        recipe.eggs = ['elementtree',]
+        recipe.buildout['buildout']['eggs-directory'] = cache
+        recipe.buildout['buildout']['develop-eggs-directory'] = dcache
+        recipe.tmp_directory = a
+        recipe.patches=[]
+        recipe.offline = False
+        recipe.md5= None
+        e = pkg_resources.Environment([cache], python=recipe.executable_version)
+        e.scan()
+        recipe.install()
+        f = pkg_resources.Environment([cache], python=recipe.executable_version)
+        f.scan()
+        recipe.eggs = ['elementtree', 'plone.app.form']
+        recipe.install()
+        g = pkg_resources.Environment([cache], python=recipe.executable_version)
+        g.scan()
+        self.assertTrue('elementtree' not in e)
+        self.assertTrue('plone.app.form' not in e)
+        self.assertTrue('elementtree' in f)
+        self.assertTrue('plone.app.form' in g)
+
+    def testGetCommonDist(self):
+        """testGetCommonDist."""
+        p = tmp
+        a = os.path.join(p, 'aaaaaaaaaa')
+        cache  = os.path.join(p, 'c')
+        dcache = os.path.join(p, 'd')
+        make_fakeegg(tmp)
+        for dir in a, cache, dcache:
+            os.makedirs(dir)
+        bd = Buildout(fp, [])
+        bd.offline = False
+        recipe = EGGSRecipe(bd, '666', bd['part'])
+        recipe.eggs = ['elementtree',]
+        recipe.buildout['buildout']['eggs-directory'] = cache
+        recipe.buildout['buildout']['develop-eggs-directory'] = dcache
+        recipe.tmp_directory = a
+        recipe.patches=[]
+        recipe.offline = False
+        recipe.md5= None
+        e = pkg_resources.Environment([cache], python=recipe.executable_version)
+        e.scan()
+        d = e['minitage.recipe'][0]
+        r = pkg_resources.Requirement.parse('minitage.recipe')
+        ws = pkg_resources.WorkingSet()
+        dist = recipe._get_dist(d, cache, ws)
+        self.assertEquals(dist.project_name, 'minitage.recipe')
+
+    def testGetDist(self):
+        """testGetDist."""
+        p = tmp
+        a = os.path.join(p, 'aaaaaaaaaa')
+        cache  = os.path.join(p, 'c')
+        dcache = os.path.join(p, 'd')
+        make_fakeegg(a)
+        for dir in cache, dcache:
+            os.makedirs(dir)
+        os.system("""cd %s
+                  cd aaaaaaaaaa
+                  %s setup.py sdist
+                  cp dist/foo-1.0.tar.gz ..
+                  cp dist/foo-1.0.tar.gz /home/kiorky/tmp/foo-1.0.tar.gz
+                  """ % (
+                      p, sys.executable)
+                 )
+
+        bd = Buildout(fp, [])
+        bd.offline = False
+        recipe = EGGSRecipe(bd, '666', bd['part'])
+        recipe.eggs = ['elementtree',]
+        recipe.buildout['buildout']['eggs-directory'] = cache
+        recipe.buildout['buildout']['develop-eggs-directory'] = dcache
+        recipe.tmp_directory = a
+        recipe.patches=[]
+        recipe.offline = False
+        recipe.md5= None
+        req = pkg_resources.Requirement.parse('foo')
+        pi = setuptools.package_index.PackageIndex()
+        pi.add_find_links([tmp])
+        d = pi.obtain(req)
+        ws = pkg_resources.WorkingSet()
+        dist = recipe._get_dist(d, cache, ws)
+        self.assertTrue(cache in dist.location)
+        self.assertEquals(dist.project_name, 'foo')
+
+    def testPatchDist(self):
+        """testPatchDist."""
+        p = tmp
+        a = os.path.join(p, 'aaaaaaaaaa')
+        cache  = os.path.join(p, 'c')
+        dcache = os.path.join(p, 'd')
+        make_fakeegg(a)
+        for dir in cache, dcache:
+            os.makedirs(dir)
+        os.system("""cd %s
+                  cd aaaaaaaaaa
+                  %s setup.py sdist
+                  cp dist/foo-1.0.tar.gz ..
+                  cp dist/foo-1.0.tar.gz /home/kiorky/tmp/foo-1.0.tar.gz
+                  """ % (
+                      p, sys.executable)
+                 )
+
+        bd = Buildout(fp, [])
+        bd.offline = False
+        recipe = EGGSRecipe(bd, '666', bd['part'])
+        recipe.eggs = ['elementtree',]
+        recipe.buildout['buildout']['eggs-directory'] = cache
+        recipe.buildout['buildout']['develop-eggs-directory'] = dcache
+        recipe.tmp_directory = a
+        recipe.patches=[]
+        recipe.offline = False
+        recipe.md5= None
+        req = pkg_resources.Requirement.parse('foo')
+        pi = setuptools.package_index.PackageIndex()
+        pi.add_find_links([tmp])
+        d = pi.obtain(req)
+        ws = pkg_resources.WorkingSet()
+
+
+        p1 = os.path.join(p, 'a.diff')
+        p2 = os.path.join(p, 'b.diff')
+        open(p1, 'w').write("""
+diff -ur old/setup.py new/setup.py
+--- old/setup.py        2008-05-30 17:53:06.305385925 +0000
++++ new/setup.py        2008-05-30 17:53:48.309233006 +0000
+@@ -10,3 +10,4 @@
+             packages=find_packages()
+ )
+
++# i am a comment which changed
+""")
+        open(p2, 'w').write("""
+--- old/bar.c   2008-05-30 17:36:43.215346219 +0000
++++ new/bar.c   2008-05-30 17:37:36.220200916 +0000
+@@ -20,3 +20,4 @@
+ }
+
+
++/* changed */
+""")
+        recipe.uname = 'linux'
+        recipe.options['foo-patches'] =  p1
+        recipe.options['foo-linux-patches'] = p2
+        recipe.options['foo-patch-options'] =  '-p1'
+        recipe.options['foo-patch-binary'] = 'patch'
+
+        location = d.location
+        if not os.path.isdir(location):
+            location = tempfile.mkdtemp()
+            recipe._unpack(d.location, location)
+            location = recipe._get_compil_dir(location)
+        recipe.options['compile-directory'] = location
+        recipe._patch(location, d)
+        l1 =  open(os.path.join(
+            location, 'setup.py'), 'r').readlines()
+        l2 =  open(os.path.join(
+            location, 'bar.c'), 'r').readlines()
+        self.assertEquals( '# i am a comment which changed\n', l1[-1])
+        self.assertEquals( '/* changed */\n', l2[-1])
 
 if __name__ == '__main__':
     suite = unittest.TestSuite()
