@@ -436,15 +436,21 @@ class MinitageCommonRecipe(object):
              shutil.rmtree(tmp)
         os.chdir(cwd)
 
-    def _download(self, url=None):
+    def _download(self, url=None, destination=None):
         """Download the archive."""
         self.logger.info('Download archive')
         if not url:
             url = self.url
 
+        if not destination:
+            destination = self.download_cache
+
+        if destination and not os.path.isdir(destination):
+            os.makedirs(destination)
+
         return get_from_cache(
             url,
-            self.download_cache,
+            destination,
             self.logger,
             self.md5,
             self.offline,
