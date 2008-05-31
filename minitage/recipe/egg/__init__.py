@@ -32,7 +32,7 @@ import zc.buildout.easy_install
 
 from minitage.recipe import common
 from minitage.core import core
-from minitage.core.common import splitstrip
+from minitage.core.common import splitstrip, remove_path
 
 class Recipe(common.MinitageCommonRecipe):
     """
@@ -41,6 +41,11 @@ class Recipe(common.MinitageCommonRecipe):
     def __init__(self, buildout, name, options):
         common.MinitageCommonRecipe.__init__(self,
                                     buildout, name, options)
+        # override recipe default and download into a subdir
+        # minitage-cache/eggs
+        # separate archives in downloaddir/minitage
+        self.download_cache = os.path.join(
+            self.download_cache, 'eggs')
 
         # caches
         self.eggs_caches = [
@@ -72,7 +77,7 @@ class Recipe(common.MinitageCommonRecipe):
         # monkey patch zc.buildout loggging
         zc.buildout.easy_install.logger = self.logger
         self.logger.setLevel(5)
-        
+
         # get an instance of the zc.buildout egg installer
         # to search in the cache if we dont have dist yet
         # and etc.
@@ -103,16 +108,16 @@ class Recipe(common.MinitageCommonRecipe):
                 self.logger.error('Compilation error. The package is left as is at %s where '
                       'you can inspect what went wrong' % self.tmp_directory)
                 self.logger.error('Message was:\n\t%s' % e)
-                raise core.MinimergeError('Recipe failed, cant install.') 
+                raise core.MinimergeError('Recipe failed, cant install.')
 
-        # cleaning stuff 
+        # cleaning stuff
         if os.path.isdir(self.tmp_directory):
             shutil.rmtree(self.tmp_directory)
 
         return []
 
     def update(self):
-        pass
+        self.install()
 
     def _install_requirements(self, req, dest, working_set=None):
         """Get urls of neccessary eggs to
@@ -135,7 +140,7 @@ class Recipe(common.MinitageCommonRecipe):
             dist, avail = self.inst._satisfied(requirement)
             if dist is None:
                 if avail is None:
-                    raise zc.buildout.easy_install.MissingDistribution(requirement, ws) 
+                    raise zc.buildout.easy_install.MissingDistribution(requirement, ws)
                 dist = self._get_dist(avail, dest, ws)
 
         for dist in dists:
@@ -224,7 +229,7 @@ class Recipe(common.MinitageCommonRecipe):
                 python=self.executable_version
             )[d.project_name]
             result.append(d)
-        
+
         return result
 
     def _run_easy_install(self, prefix, specs, caches=None):
@@ -243,24 +248,24 @@ class Recipe(common.MinitageCommonRecipe):
 
         for dir in caches + self.eggs_caches:
             args += ('-f %s' % dir,)
-        
+
         # use the common nice functions to make our environement convenient to
         # build packages with dependencies
         self._set_py_path()
         self._set_path()
         self._set_pkgconfigpath()
-        self._set_compilation_flags() 
+        self._set_compilation_flags()
 
         cwd = os.getcwd()
         for spec in specs:
             largs = args + ('%s' % spec, )
-            
+
             # installing from a path, cd inside
             if spec.startswith('/') and os.path.isdir(spec):
                 os.chdir(spec)
 
             self.logger.info('Running easy_install: \n%s "%s"\n', self.executable, '" "'.join(largs))
-            
+
             try:
                 sys.stdout.flush() # We want any pending output first
                 if self.uname == 'Darwin':
@@ -275,8 +280,8 @@ class Recipe(common.MinitageCommonRecipe):
                     raise
             except Exception, e:
                 raise core.MinimergeError('PythonPackage via easy_install Install failed')
-           
-        os.chdir(cwd)   
+
+        os.chdir(cwd)
 
     def _get_dist(self, avail, dest, ws):
         """Get a distribution."""
@@ -304,10 +309,17 @@ class Recipe(common.MinitageCommonRecipe):
         if link.startswith('/'):
             if not os.path.isdir(link):
                 link = os.path.dirname(link)
-            self.inst._index.add_find_links([link]) 
+            self.inst._index.add_find_links([link])
         source = self.inst._index.obtain(requirement).location
         if not source.startswith('/'):
-            filename = self._download(source)
+            # download to cache/FIRSTLETTER/Archive
+            filename = self._download(
+                source,
+                os.path.join(
+                    self.download_cache,
+                    avail.project_name[0]
+                )
+            )
         # or we copy the dist in a temp directory for building it
         else:
             filename = os.path.join(
@@ -350,8 +362,30 @@ class Recipe(common.MinitageCommonRecipe):
                         )
 
                 if should_unzip:
-                    setuptools.archive_util.unpack_archive(
-                        dist.location, newloc)
+                    backup = None
+                    if os.path.exists(newloc):
+                        backup = '.'.join([newloc, 'old'])
+                        if os.path.exists(backup):
+                            message = 'There is already a backuped egg in %s' % backup
+                            self.logger.error(message)
+                            raise core.MinimergeError('Recipe failed, please '
+                                                      'remove the old backup or deal with it.')
+                        self.logger.info('Warning, renaming previously existing'
+                                         ' %s egg in cache' % newloc)
+                        os.rename(newloc, backup)
+                    try:
+                        setuptools.archive_util.unpack_archive( 
+                            dist.location, newloc)
+                        # if is it not in error, remove backup
+                        if backup:
+                            remove_path(backup)
+                    except:
+                        if backup:
+                            self.logger.info('cleaning %s' % newloc)
+                            if os.path.exists(newloc):
+                                remove_path(newloc)
+                            self.logger.info('Restoring %s' % newloc)
+                            os.rename(backup, newloc)
                 else:
                     shutil.copyfile(dist.location, newloc)
 
@@ -370,7 +404,7 @@ class Recipe(common.MinitageCommonRecipe):
         self._env.scan(search_pathes)
         dist = self._env.best_match(requirement, ws)
         self.logger.info("Got %s.", dist)
-        
+
         return dist
 
     def _patch(self, location, dist):
@@ -397,7 +431,7 @@ class Recipe(common.MinitageCommonRecipe):
                     ''
                 )
             )
-        ) 
+        )
         common. MinitageCommonRecipe._patch(
             self, location, patch_cmd, patch_options, patches
         )
