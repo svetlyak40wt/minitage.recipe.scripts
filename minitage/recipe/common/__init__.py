@@ -456,9 +456,15 @@ class MinitageCommonRecipe(object):
             self.offline,
         )
 
-    def _set_py_path(self):
-        """Set python path."""
+    def _set_py_path(self, ws=None):
+        """Set python path.
+        Arguments:
+            - ws : setuptools WorkingSet
+        """
         self.logger.info('Setting path')
+        # setuptool ws maybe?
+        if ws:
+            self.pypath.extend(ws.entries)
         os.environ['PYTHONPATH'] = ':'.join(self.pypath)
 
     def _set_path(self):
@@ -553,11 +559,15 @@ class MinitageCommonRecipe(object):
     def update(self):
         pass
 
-    def _call_hook(self, hook):
+    def _call_hook(self, hook, destination=None):
         """
         This method is copied from z3c.recipe.runscript.
         See http://pypi.python.org/pypi/z3c.recipe.runscript for details.
         """
+        cwd = os.getcwd()
+        if destination:
+            os.chdir(destination)
+
         if hook in self.options \
            and len(self.options[hook].strip()) > 0:
             self.logger.info('Executing %s' % hook)
@@ -568,6 +578,9 @@ class MinitageCommonRecipe(object):
             getattr(module, callable.strip())(
                 self.options, self.buildout
             )
+
+        if destination:
+            os.chdir(cwd)
 
     def _get_compil_dir(self, directory):
         """Get the compilation directory after creation.
