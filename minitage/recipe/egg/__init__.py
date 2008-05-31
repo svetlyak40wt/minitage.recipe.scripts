@@ -59,11 +59,17 @@ class Recipe(common.MinitageCommonRecipe):
         )
 
         # real eggs
-        self.eggs = splitstrip(self.options.get('eggs', ''))
+        self.eggs = [ i\
+                     for i in self.options.get('eggs', '').split('\n')\
+                     if i]
 
+        import pdb;pdb.set_trace()  ## Breakpoint ##
         # findlinks for eggs
         self.find_links = splitstrip(self.options.get('find-links', ''))
 
+        #index replacement
+        self.index = self.options.get('index', None)
+        
         # zip flag for eggs
         self.zip_safe = False
         if self.options.get('zip-safe', 'true'):
@@ -83,17 +89,23 @@ class Recipe(common.MinitageCommonRecipe):
         # and etc.
         self.inst = zc.buildout.easy_install.Installer(
             dest=None,
+            index=self.index,
             links=self.find_links,
             executable=self.executable,
             always_unzip=self.zip_safe,
             versions=self.buildout.get('versions', {}),
             path=self.eggs_caches
         )
+        self._dest= self.buildout['buildout']['eggs-directory']
+
+    def update(self):
+        self.install()
 
     def install(self):
         """installs an egg
         """
         self.logger.info('Installing python egg(s).')
+        ws = None
         # initialise working directories
         if not os.path.exists(self.tmp_directory):
             os.makedirs(self.tmp_directory)
@@ -101,14 +113,20 @@ class Recipe(common.MinitageCommonRecipe):
         # get the source distribution url for the eggs
         if 'eggs' in self.options:
             try:
-                self._install_requirements(
+                ws = self._install_requirements(
                     self.eggs,
-                    self.buildout['buildout']['eggs-directory'])
+                    self._dest)
             except Exception, e:
                 self.logger.error('Compilation error. The package is left as is at %s where '
                       'you can inspect what went wrong' % self.tmp_directory)
                 self.logger.error('Message was:\n\t%s' % e)
                 raise core.MinimergeError('Recipe failed, cant install.')
+
+        # if we choosed an url
+        # downloading it, scanning its stuff and giving it to easy install
+        if self.url:
+            self.install_static_distributions(ws)
+
 
         # cleaning stuff
         if os.path.isdir(self.tmp_directory):
@@ -116,8 +134,34 @@ class Recipe(common.MinitageCommonRecipe):
 
         return []
 
-    def update(self):
-        self.install()
+    def install_static_distributions(self, ws=None):
+        """Install distribution distribued somewhere as archives."""
+        if not ws:
+            ws = pkg_resources.WorkingSet([])
+        # downloading
+        fname = self._download()
+
+
+        # go inside dist  and scan for setup.py
+        dists = [e \
+                 for e \
+                     in setuptools.package_index.distros_for_filename(
+                         fname)]
+
+        # sort duplicates
+        paths =[]
+        toinstall = []
+        for dist in dists:
+            if not dist.location in [d.location\
+                                     for d in toinstall]:
+                toinstall.append(dist)
+
+        for dist in toinstall:
+            installed_dists = self._install_distribution(dist, self._dest, ws)
+            for item in installed_dists:
+                ws.add(item)
+
+        return ws
 
     def _install_requirements(self, req, dest, working_set=None):
         """Get urls of neccessary eggs to
@@ -137,11 +181,13 @@ class Recipe(common.MinitageCommonRecipe):
         # requirement
         dists = []
         for requirement in requirements:
+            print requirement
             dist, avail = self.inst._satisfied(requirement)
             if dist is None:
                 if avail is None:
                     raise zc.buildout.easy_install.MissingDistribution(requirement, ws)
                 dist = self._get_dist(avail, dest, ws)
+            dists.append(dist)
 
         for dist in dists:
             ws.add(dist)
@@ -157,11 +203,11 @@ class Recipe(common.MinitageCommonRecipe):
                              dist.project_name, dist.version)
                 if not self.inst._allow_picked_versions:
                     raise zc.buildout.UserError(
-                        'Picked: %s = %s' % (dist.project_name, dist.version)
-                        )
+                        'Picked: %s = %s' % (dist.project_name, dist.version))
+
         return ws
 
-    def _install_distribution(self, dist, dest):
+    def _install_distribution(self, dist, dest, ws=None):
         """Install a setuptool distribution
         into the eggs cache."""
         # where we put the builded  eggs
@@ -174,11 +220,23 @@ class Recipe(common.MinitageCommonRecipe):
             location = tempfile.mkdtemp()
             self._unpack(dist.location, location)
             location = self._get_compil_dir(location)
+        sub_prefix = self.options.get(
+            '%s-build-dir' % ( dist.project_name.lower()), 
+            None
+        )
+        if sub_prefix:
+            location = os.path.join(location, sub_prefix)
+
         self.options['compile-directory'] = location
         # maybe patch time
         self._patch(location, dist)
+        #maybe we have a hook
+        self._call_hook(
+            '%s-pre-setup-hook' % (dist.project_name.lower()),
+            location
+        )
         # compile time
-        self._run_easy_install(tmp, ['%s' % location])
+        self._run_easy_install(tmp, ['%s' % location], ws=ws)
         # scan to seach resulted eggs.
         dists = []
         env = pkg_resources.Environment(
@@ -192,20 +250,20 @@ class Recipe(common.MinitageCommonRecipe):
             raise zc.buildout.UserError("Couldn't install: %s" % dist)
 
         if len(dists) > 1:
-            logger.warn("Installing %s\n"
+            self.logger.warn("Installing %s\n"
                         "caused multiple distributions to be installed:\n"
                         "%s\n",
                         dist, '\n'.join(map(str, dists)))
         else:
             d = dists[0]
             if d.project_name != dist.project_name:
-                logger.warn("Installing %s\n"
+                self.logger.warn("Installing %s\n"
                             "Caused installation of a distribution:\n"
                             "%s\n"
                             "with a different project name.",
                             dist, d)
             if d.version != dist.version:
-                logger.warn("Installing %s\n"
+                self.logger.warn("Installing %s\n"
                             "Caused installation of a distribution:\n"
                             "%s\n"
                             "with a different version.",
@@ -228,11 +286,15 @@ class Recipe(common.MinitageCommonRecipe):
                 [newloc],
                 python=self.executable_version
             )[d.project_name]
+            self._call_hook(
+                '%s-post-setup-hook' % (d.project_name.lower()),
+                newloc
+            )
             result.append(d)
 
         return result
 
-    def _run_easy_install(self, prefix, specs, caches=None):
+    def _run_easy_install(self, prefix, specs, caches=None, ws=None):
         """Install a python egg using easy_install."""
         if not caches:
             caches = []
@@ -251,7 +313,7 @@ class Recipe(common.MinitageCommonRecipe):
 
         # use the common nice functions to make our environement convenient to
         # build packages with dependencies
-        self._set_py_path()
+        self._set_py_path(ws)
         self._set_path()
         self._set_pkgconfigpath()
         self._set_compilation_flags()
@@ -264,7 +326,9 @@ class Recipe(common.MinitageCommonRecipe):
             if spec.startswith('/') and os.path.isdir(spec):
                 os.chdir(spec)
 
-            self.logger.info('Running easy_install: \n%s "%s"\n', self.executable, '" "'.join(largs))
+            self.logger.info('Running easy_install: \n%s "%s"\n',
+                             self.executable,
+                             '" "'.join(largs))
 
             try:
                 sys.stdout.flush() # We want any pending output first
@@ -369,23 +433,26 @@ class Recipe(common.MinitageCommonRecipe):
                             message = 'There is already a backuped egg in %s' % backup
                             self.logger.error(message)
                             raise core.MinimergeError('Recipe failed, please '
-                                                      'remove the old backup or deal with it.')
+                                                      'remove the old backup or '
+                                                      'deal with it.')
                         self.logger.info('Warning, renaming previously existing'
                                          ' %s egg in cache' % newloc)
                         os.rename(newloc, backup)
                     try:
-                        setuptools.archive_util.unpack_archive( 
+                        setuptools.archive_util.unpack_archive(
                             dist.location, newloc)
                         # if is it not in error, remove backup
                         if backup:
                             remove_path(backup)
                     except:
                         if backup:
-                            self.logger.info('cleaning %s' % newloc)
+                            self.logger.info('Removing incomplete %s' % newloc)
                             if os.path.exists(newloc):
                                 remove_path(newloc)
                             self.logger.info('Restoring %s' % newloc)
                             os.rename(backup, newloc)
+                            raise core.MinimergeError(
+                                '%s egg compilation failed' % dist.project_name)
                 else:
                     shutil.copyfile(dist.location, newloc)
 
