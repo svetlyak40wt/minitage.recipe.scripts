@@ -175,4 +175,4 @@ class Recipe(common.MinitageCommonRecipe):
             shutil.rmtree(tmp)
         os.chdir(cwd)
 
-    
+
