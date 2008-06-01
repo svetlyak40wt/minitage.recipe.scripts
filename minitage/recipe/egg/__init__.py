@@ -31,6 +31,7 @@ from zc.buildout.easy_install import _safe_arg, _easy_install_cmd
 import zc.buildout.easy_install
 
 from minitage.recipe import common
+from minitage.core.fetchers.interfaces import IFetcherFactory
 from minitage.core import core
 from minitage.core.common import splitstrip, remove_path
 
@@ -63,13 +64,12 @@ class Recipe(common.MinitageCommonRecipe):
                      for i in self.options.get('eggs', '').split('\n')\
                      if i]
 
-        import pdb;pdb.set_trace()  ## Breakpoint ##
         # findlinks for eggs
         self.find_links = splitstrip(self.options.get('find-links', ''))
 
         #index replacement
         self.index = self.options.get('index', None)
-        
+
         # zip flag for eggs
         self.zip_safe = False
         if self.options.get('zip-safe', 'true'):
@@ -139,12 +139,43 @@ class Recipe(common.MinitageCommonRecipe):
         if not ws:
             ws = pkg_resources.WorkingSet([])
         # downloading
+        # fname = self._download()
+        self._call_hook('post-download-hook')
         fname = self._download()
 
-
-        # go inside dist  and scan for setup.py
-        dists = [e \
-                 for e \
+        dists = []
+        # if it is a repo, making a local copy
+        # and scan its distro
+        if os.path.isdir(fname):
+            tmp = os.path.join(self.tmp_directory, 'wc')
+            f = IFetcherFactory(self.minitage_config)
+            for fetcher in f.products:
+                dot = getattr(f.products[fetcher](),
+                              'metadata_directory', None)
+                if dot:
+                    if os.path.exists(os.path.join(fname, dot)):
+                        shutil.copytree(fname, tmp)
+                        break
+            # go inside dist and scan for setup.py
+            self.options['compile-directory'] = tmp
+            self._call_hook('post-checkout-hook')
+            # build the egg distribution in there.
+            cwd = os.getcwd()
+            os.chdir(tmp)
+            ret = os.system('%s setup.py sdist' % sys.executable)
+            os.chdir(cwd)
+            sdists = os.path.join(tmp, 'dist')
+            for item in os.listdir(sdists):
+                dists.extend( [e \
+                               for e \
+                               in setuptools.package_index.distros_for_filename(
+                                   os.path.join(sdists,item)
+                               )]
+                            )
+        else:
+            # scan for the distribution archive infos.
+            dists = [e \
+                     for e \
                      in setuptools.package_index.distros_for_filename(
                          fname)]
 
@@ -157,20 +188,36 @@ class Recipe(common.MinitageCommonRecipe):
                 toinstall.append(dist)
 
         for dist in toinstall:
-            installed_dists = self._install_distribution(dist, self._dest, ws)
-            for item in installed_dists:
-                ws.add(item)
+            requirement = pkg_resources.Requirement.parse(
+                '%s == %s' % (dist.project_name, dist.version)
+            )
+            sdist, savail = self.inst._satisfied(requirement)
+            if sdist:
+                self.logger.info('We have already '
+                            'the distribution for '
+                            '%s' % sdist.location)
+                msg = 'If you want to rebuild, please \'rm -rf %s\''
+                self.logger.info(msg % sdist.location)
+                ws.add(sdist)
+            else:
+                installed_dists = self._install_distribution(dist, self._dest, ws)
+                for item in installed_dists:
+                    ws.add(item)
 
         return ws
 
-    def _install_requirements(self, req, dest, working_set=None):
+    def _install_requirements(self, reqs, dest, working_set=None):
         """Get urls of neccessary eggs to
         achieve a requirement.
         """
 
-        requirements = [self.inst._constrain(
-            pkg_resources.Requirement.parse(spec))
-            for spec in req]
+        requirements = []
+        for spec in reqs:
+            requirements.append(
+                self.inst._constrain(
+                    pkg_resources.Requirement.parse(spec)) 
+            )
+
 
         if working_set is None:
             ws = pkg_resources.WorkingSet([])
@@ -181,7 +228,6 @@ class Recipe(common.MinitageCommonRecipe):
         # requirement
         dists = []
         for requirement in requirements:
-            print requirement
             dist, avail = self.inst._satisfied(requirement)
             if dist is None:
                 if avail is None:
@@ -221,7 +267,7 @@ class Recipe(common.MinitageCommonRecipe):
             self._unpack(dist.location, location)
             location = self._get_compil_dir(location)
         sub_prefix = self.options.get(
-            '%s-build-dir' % ( dist.project_name.lower()), 
+            '%s-build-dir' % ( dist.project_name.lower()),
             None
         )
         if sub_prefix:
@@ -466,7 +512,7 @@ class Recipe(common.MinitageCommonRecipe):
         else:
             # It's some other kind of dist.  We'll let setup.py
             # make the stuff
-            dist = self._install_distribution(dist, dest)
+            dist = self._install_distribution(dest, dist, dest)
 
         self._env.scan(search_pathes)
         dist = self._env.best_match(requirement, ws)
@@ -483,17 +529,17 @@ class Recipe(common.MinitageCommonRecipe):
 
         patch_options = ' '.join(
             self.options.get(
-                '%s-patch-options' % dist. project_name, '-p0'
+                '%s-patch-options' % dist.project_name.lower(), '-p0'
             ).split()
         )
         patches = self.options.get(
-            '%s-patches' % dist.project_name,
+            '%s-patches' % dist.project_name.lower(),
             '').split()
         # conditionnaly add OS specifics patches.
         patches.extend(
             splitstrip(
                 self.options.get(
-                    '%s-%s-patches' % (dist.project_name,
+                    '%s-%s-patches' % (dist.project_name.lower(),
                                        self.uname.lower()),
                     ''
                 )

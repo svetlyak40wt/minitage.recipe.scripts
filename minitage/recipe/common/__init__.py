@@ -31,6 +31,7 @@ import pkg_resources
 import zc.buildout.easy_install
 from minitage.core.common import get_from_cache, system, splitstrip
 from minitage.core.unpackers.interfaces import IUnpackerFactory
+from minitage.core.fetchers.interfaces import IFetcherFactory
 from minitage.core import core
 from minitage.core import interfaces
 
@@ -51,8 +52,12 @@ class MinitageCommonRecipe(object):
         self.offline = buildout.offline
         self.install_from_cache = self.options.get('install-from-cache', None)
 
-        # url from
+        # url from and scm type if any
+        # the scm is one available in the 'fetchers' factory
         self.url = self.options.get('url', None)
+        self.scm = self.options.get('scm', None)
+        self.revision = self.options.get('revision', None)
+        self.scm_args = self.options.get('scm-args', None)
 
         # maybe md5
         self.md5 = self.options.get('md5sum', None)
@@ -285,17 +290,17 @@ class MinitageCommonRecipe(object):
         self.minimerge = None
         minibuild_dependencies = []
         minibuild_eggs = []
-        minitage_config = os.path.join(
+        self.minitage_config = os.path.join(
             self.minitage_directory, 'etc', 'minimerge.cfg')
         try:
             self.minimerge = core.Minimerge({
                 'nolog' : True,
-                'config': minitage_config
+                'config': self.minitage_config
                 }
             )
         except:
             message = 'Problem when intializing minimerge instance with %s config.'
-            self.logger.debug(message % minitage_config)
+            self.logger.debug(message % self.minitage_config)
 
         try:
             self.minibuild = self.minimerge._find_minibuild(
@@ -436,11 +441,14 @@ class MinitageCommonRecipe(object):
              shutil.rmtree(tmp)
         os.chdir(cwd)
 
-    def _download(self, url=None, destination=None):
+    def _download(self, url=None, destination=None, scm=None, revision=None, scm_args=None):
         """Download the archive."""
         self.logger.info('Download archive')
         if not url:
             url = self.url
+
+        if not scm:
+           scm =  self.scm
 
         if not destination:
             destination = self.download_cache
@@ -448,13 +456,45 @@ class MinitageCommonRecipe(object):
         if destination and not os.path.isdir(destination):
             os.makedirs(destination)
 
-        return get_from_cache(
-            url,
-            destination,
-            self.logger,
-            self.md5,
-            self.offline,
-        )
+        if scm:
+            # set path for scms.
+            self._set_path()
+            opts = {}
+
+            if not revision:
+                revision = self.revision
+
+            if not scm_args:
+                scm_args = self.scm_args
+
+            if scm_args:
+                opts['args'] = scm_args
+
+            if revision:
+                opts['revision'] = revision
+
+            scm_dir = os.path.join(
+                destination, scm)
+
+
+            subdir = url.replace('://', '/').replace('/', '.')
+            scm_dest = os.path.join(
+                scm_dir,subdir )
+
+            # fetching now
+            ff = IFetcherFactory(self.minitage_config)
+            scm = ff(scm)
+            scm.fetch_or_update(scm_dest, url, opts)
+            return scm_dest
+
+        else:
+            return get_from_cache(
+                url,
+                destination,
+                self.logger,
+                self.md5,
+                self.offline,
+            )
 
     def _set_py_path(self, ws=None):
         """Set python path.
