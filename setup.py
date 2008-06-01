@@ -61,6 +61,7 @@ setup(
             'egg = %s:Recipe' % 'minitage.recipe.egg',
             'zdu = %s:Recipe' % 'minitage.recipe.du',
             'cmmi = %s:Recipe' % 'minitage.recipe.cmmi',
+            'scripts = %s:Recipe' % 'minitage.recipe.scripts',
         ]
     },
 )
