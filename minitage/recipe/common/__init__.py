@@ -482,9 +482,20 @@ class MinitageCommonRecipe(object):
                 scm_dir,subdir )
 
             # fetching now
-            ff = IFetcherFactory(self.minitage_config)
-            scm = ff(scm)
-            scm.fetch_or_update(scm_dest, url, opts)
+            if not self.offline:
+                ff = IFetcherFactory(self.minitage_config)
+                scm = ff(scm)
+                scm.fetch_or_update(scm_dest, url, opts)
+            else:
+                if not os.path.exists(scm_dest):
+                    message = 'Can\'t get a working copy from \'%s\''\
+                              ' into \'%s\' when we are in offline mode'
+                    raise core.MinimergeError(message % (url, scm_dest))
+                else:
+                    self.logger.info('We assumed that \'%s\' is the result'
+                                     ' of a check out as'
+                                     ' we are in offline mode.' % scm_dest
+                                    )
             return scm_dest
 
         else:
