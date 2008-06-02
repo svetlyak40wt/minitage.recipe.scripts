@@ -87,6 +87,9 @@ class Recipe(common.MinitageCommonRecipe):
         # get an instance of the zc.buildout egg installer
         # to search in the cache if we dont have dist yet
         # and etc.
+        if self.offline:
+            self.index = 'file://%s' % self.eggs_caches[0]
+            self.find_links = []
         self.inst = zc.buildout.easy_install.Installer(
             dest=None,
             index=self.index,
@@ -191,12 +194,11 @@ class Recipe(common.MinitageCommonRecipe):
             requirement = pkg_resources.Requirement.parse(
                 '%s == %s' % (dist.project_name, dist.version)
             )
+            # force env rescanning if egg was not there at init.
+            self.inst._env.scan([self._dest])
             sdist, savail = self.inst._satisfied(requirement)
             if sdist:
-                self.logger.info('We have already '
-                            'the distribution for '
-                            '%s' % sdist.location)
-                msg = 'If you want to rebuild, please \'rm -rf %s\''
+                msg = 'If you want to rebuild, please do \'rm -rf %s\''
                 self.logger.info(msg % sdist.location)
                 ws.add(sdist)
             else:
@@ -210,14 +212,12 @@ class Recipe(common.MinitageCommonRecipe):
         """Get urls of neccessary eggs to
         achieve a requirement.
         """
-
         requirements = []
         for spec in reqs:
             requirements.append(
                 self.inst._constrain(
-                    pkg_resources.Requirement.parse(spec)) 
+                    pkg_resources.Requirement.parse(spec))
             )
-
 
         if working_set is None:
             ws = pkg_resources.WorkingSet([])
@@ -228,10 +228,29 @@ class Recipe(common.MinitageCommonRecipe):
         # requirement
         dists = []
         for requirement in requirements:
+            # first try with what we have in binary form
+            # force env rescanning if egg was not there at init.
+            self.inst._env.scan([self._dest])
             dist, avail = self.inst._satisfied(requirement)
             if dist is None:
                 if avail is None:
-                    raise zc.buildout.easy_install.MissingDistribution(requirement, ws)
+                    env = pkg_resources.Environment([self.download_cache])
+                    sdists = []
+                    for file in os.listdir(self.download_cache):
+                        # try to scan source distribtion
+                        path = os.path.join(self.download_cache, file)
+                        if os.path.isfile(path):
+                            sdists.extend(
+                                setuptools.package_index.distros_for_url(path))
+                        for distro in sdists:
+                            env.add(distro)
+                    # last try, testing sources (very useful for offline mode
+                    # or when your egg is not indexed)
+                    avail = env.best_match(requirement, ws)
+                    if not avail:
+                        raise zc.buildout.easy_install.MissingDistribution(requirement, ws)
+                    msg = 'We found a source distribution for \'%s\' in \'%s\'.'
+                    self.logger.info(msg % (requirement, avail.location))
                 dist = self._get_dist(avail, dest, ws)
             dists.append(dist)
 
@@ -425,10 +444,7 @@ class Recipe(common.MinitageCommonRecipe):
             # download to cache/FIRSTLETTER/Archive
             filename = self._download(
                 source,
-                os.path.join(
-                    self.download_cache,
-                    avail.project_name[0]
-                )
+                self.download_cache,
             )
         # or we copy the dist in a temp directory for building it
         else:
@@ -512,7 +528,7 @@ class Recipe(common.MinitageCommonRecipe):
         else:
             # It's some other kind of dist.  We'll let setup.py
             # make the stuff
-            dist = self._install_distribution(dest, dist, dest)
+            dist = self._install_distribution(dist, dest, ws)
 
         self._env.scan(search_pathes)
         dist = self._env.best_match(requirement, ws)
