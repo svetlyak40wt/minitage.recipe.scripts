@@ -201,9 +201,13 @@ class Recipe(common.MinitageCommonRecipe):
                 toinstall.append(dist)
 
         for dist in toinstall:
-            requirement = pkg_resources.Requirement.parse(
-                '%s == %s' % (dist.project_name, dist.version)
-            )
+            requirement = None
+            if dist.version:
+                requirement = pkg_resources.Requirement.parse(
+                    '%s == %s' % (dist.project_name, dist.version)
+                )
+            else:
+                requirement = pkg_resources.Requirement.parse( dist.project_name)
             # force env rescanning if egg was not there at init.
             self.inst._env.scan([self._dest])
             sdist, savail = self.inst._satisfied(requirement)
