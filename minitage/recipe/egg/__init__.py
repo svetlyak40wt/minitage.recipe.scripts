@@ -175,6 +175,7 @@ class Recipe(common.MinitageCommonRecipe):
             # build the egg distribution in there.
             cwd = os.getcwd()
             os.chdir(tmp)
+            self._sanitizeenv(ws)
             ret = os.system('%s setup.py sdist' % sys.executable)
             os.chdir(cwd)
             sdists = os.path.join(tmp, 'dist')
@@ -396,12 +397,7 @@ class Recipe(common.MinitageCommonRecipe):
         for dir in caches + self.eggs_caches:
             args += ('-f %s' % dir,)
 
-        # use the common nice functions to make our environement convenient to
-        # build packages with dependencies
-        self._set_py_path(ws)
-        self._set_path()
-        self._set_pkgconfigpath()
-        self._set_compilation_flags()
+        self._sanitizeenv(ws)
 
         cwd = os.getcwd()
         for spec in specs:
@@ -417,8 +413,7 @@ class Recipe(common.MinitageCommonRecipe):
 
             try:
                 sys.stdout.flush() # We want any pending output first
-                if self.uname == 'Darwin':
-                    os.environ['MACOSX_DEPLOYMENT_TARGET'] = '10.5'
+
                 largs += (dict(os.environ),)
                 exit_code = os.spawnle(
                     os.P_WAIT,
@@ -586,5 +581,16 @@ class Recipe(common.MinitageCommonRecipe):
         common. MinitageCommonRecipe._patch(
             self, location, patch_cmd, patch_options, patches
         )
+
+    def _sanitizeenv(self, ws):
+        """Get the env. right to compile."""
+        # use the common nice functions to make our environement convenient to
+        # build packages with dependencies
+        self._set_py_path(ws)
+        self._set_path()
+        self._set_pkgconfigpath()
+        self._set_compilation_flags()
+        if self.uname == 'Darwin':
+            os.environ['MACOSX_DEPLOYMENT_TARGET'] = '10.5'
 
 # vim:set et sts=4 ts=4 tw=80:
