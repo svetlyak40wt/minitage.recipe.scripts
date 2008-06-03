@@ -107,6 +107,14 @@ class Recipe(common.MinitageCommonRecipe):
     def install(self):
         """installs an egg
         """
+        self.get_workingset()
+        return []
+
+
+    def get_workingset(self):
+        """real recipe method but renamed for convenience as
+        we do not return a path tuple but a workingset
+        """
         self.logger.info('Installing python egg(s).')
         ws = None
         # initialise working directories
@@ -130,13 +138,12 @@ class Recipe(common.MinitageCommonRecipe):
         if self.url:
             self.install_static_distributions(ws)
 
-
         # cleaning stuff
         if os.path.isdir(self.tmp_directory):
             shutil.rmtree(self.tmp_directory)
-
-        return []
-
+        
+        return ws
+ 
     def install_static_distributions(self, ws=None):
         """Install distribution distribued somewhere as archives."""
         if not ws:
@@ -334,6 +341,9 @@ class Recipe(common.MinitageCommonRecipe):
                             "with a different version.",
                             dist, d)
 
+        ## check if cache container is there.
+        if not os.path.isdir(dest):
+            os.makedirs(dest)  
         # install eggs in the destination
         result = []
         for d in dists:
@@ -345,6 +355,7 @@ class Recipe(common.MinitageCommonRecipe):
                     shutil.rmtree(newloc)
                 else:
                     os.remove(newloc)
+
             os.rename(d.location, newloc)
 
             [d] = pkg_resources.Environment(

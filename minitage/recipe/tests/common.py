@@ -632,26 +632,19 @@ chmod +x configure
         bd = Buildout(fp, [])
         bd.offline = False
         recipe = EGGSRecipe(bd, '666', bd['part'])
-        recipe.eggs = ['elementtree',]
         recipe.buildout['buildout']['eggs-directory'] = cache
         recipe.buildout['buildout']['develop-eggs-directory'] = dcache
         recipe.tmp_directory = a
         recipe.patches=[]
         recipe.offline = False
         recipe.md5= None
-        e = pkg_resources.Environment([cache], python=recipe.executable_version)
-        e.scan()
-        recipe.install()
-        f = pkg_resources.Environment([cache], python=recipe.executable_version)
-        f.scan()
+        recipe.eggs = ['elementtree',]
+        ws = recipe.get_workingset()
+        self.assertTrue(ws.find(pkg_resources.Requirement.parse('elementtree')))
         recipe.eggs = ['elementtree', 'plone.app.form']
-        recipe.install()
-        g = pkg_resources.Environment([cache], python=recipe.executable_version)
-        g.scan()
-        self.assertTrue('elementtree' not in e)
-        self.assertTrue('plone.app.form' not in e)
-        self.assertTrue('elementtree' in f)
-        self.assertTrue('plone.app.form' in g)
+        ws = recipe.get_workingset()
+        self.assertTrue(ws.find(pkg_resources.Requirement.parse('elementtree')))
+        self.assertTrue(ws.find(pkg_resources.Requirement.parse('plone.app.form')))
 
     def testGetCommonDist(self):
         """testGetCommonDist."""
