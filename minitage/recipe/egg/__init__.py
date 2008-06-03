@@ -102,6 +102,7 @@ class Recipe(common.MinitageCommonRecipe):
         self._dest= self.buildout['buildout']['eggs-directory']
 
     def update(self):
+        """update."""
         self.install()
 
     def install(self):
@@ -128,8 +129,10 @@ class Recipe(common.MinitageCommonRecipe):
                     self.eggs,
                     self._dest)
             except Exception, e:
-                self.logger.error('Compilation error. The package is left as is at %s where '
-                      'you can inspect what went wrong' % self.tmp_directory)
+                self.logger.error('Compilation error. The package is'
+                                  ' left as is at %s where '
+                                  'you can inspect what went wrong' % (
+                                      self.tmp_directory))
                 self.logger.error('Message was:\n\t%s' % e)
                 raise core.MinimergeError('Recipe failed, cant install.')
 
@@ -141,9 +144,9 @@ class Recipe(common.MinitageCommonRecipe):
         # cleaning stuff
         if os.path.isdir(self.tmp_directory):
             shutil.rmtree(self.tmp_directory)
-        
+
         return ws
- 
+
     def install_static_distributions(self, ws=None):
         """Install distribution distribued somewhere as archives."""
         if not ws:
@@ -190,7 +193,7 @@ class Recipe(common.MinitageCommonRecipe):
                          fname)]
 
         # sort duplicates
-        paths =[]
+        paths = []
         toinstall = []
         for dist in dists:
             if not dist.location in [d.location\
@@ -209,7 +212,8 @@ class Recipe(common.MinitageCommonRecipe):
                 self.logger.info(msg % sdist.location)
                 ws.add(sdist)
             else:
-                installed_dists = self._install_distribution(dist, self._dest, ws)
+                installed_dists = self._install_distribution(
+                    dist, self._dest, ws)
                 for item in installed_dists:
                     ws.add(item)
 
@@ -255,7 +259,8 @@ class Recipe(common.MinitageCommonRecipe):
                     # or when your egg is not indexed)
                     avail = env.best_match(requirement, ws)
                     if not avail:
-                        raise zc.buildout.easy_install.MissingDistribution(requirement, ws)
+                        raise zc.buildout.easy_install.MissingDistribution(
+                            requirement, ws)
                     msg = 'We found a source distribution for \'%s\' in \'%s\'.'
                     self.logger.info(msg % (requirement, avail.location))
                 dist = self._get_dist(avail, dest, ws)
@@ -343,7 +348,7 @@ class Recipe(common.MinitageCommonRecipe):
 
         ## check if cache container is there.
         if not os.path.isdir(dest):
-            os.makedirs(dest)  
+            os.makedirs(dest)
         # install eggs in the destination
         result = []
         for d in dists:
@@ -419,7 +424,9 @@ class Recipe(common.MinitageCommonRecipe):
                 if exit_code > 0:
                     raise
             except Exception, e:
-                raise core.MinimergeError('PythonPackage via easy_install Install failed')
+                raise core.MinimergeError(
+                    'PythonPackage via easy_install Install failed'
+                )
 
         os.chdir(cwd)
 
@@ -503,11 +510,11 @@ class Recipe(common.MinitageCommonRecipe):
                     if os.path.exists(newloc):
                         backup = '.'.join([newloc, 'old'])
                         if os.path.exists(backup):
-                            message = 'There is already a backuped egg in %s' % backup
-                            self.logger.error(message)
+                            message = 'There is already a backuped egg in %s'
+                            self.logger.error(message % backup)
                             raise core.MinimergeError('Recipe failed, please '
-                                                      'remove the old backup or '
-                                                      'deal with it.')
+                                                      'remove the old backup '
+                                                      ' or deal with it.')
                         self.logger.info('Warning, renaming previously existing'
                                          ' %s egg in cache' % newloc)
                         os.rename(newloc, backup)

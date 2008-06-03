@@ -244,7 +244,8 @@ class MinitageCommonRecipe(object):
         self.pkgconfigpath = splitstrip(self.options.get('pkgconfigpath', ''))
 
         # python path
-        self.pypath = [self.buildout['buildout']['directory'], self.options['location']]
+        self.pypath = [self.buildout['buildout']['directory'], 
+                       self.options['location']]
         self.pypath.extend(self.pypath)
         self.pypath.extend(
             splitstrip(
@@ -299,7 +300,8 @@ class MinitageCommonRecipe(object):
                 }
             )
         except:
-            message = 'Problem when intializing minimerge instance with %s config.'
+            message = 'Problem when intializing minimerge '\
+                    'instance with %s config.'
             self.logger.debug(message % self.minitage_config)
 
         try:
@@ -361,12 +363,14 @@ class MinitageCommonRecipe(object):
         for s in self.minitage_eggs \
                  + [self.site_packages_path] \
                  + [self.buildout['buildout']['eggs-directory']] :
-          self.pypath.append(s)
+            self.pypath.append(s)
 
         # cleaning if we have a prior compilation step.
         if os.path.isdir(self.tmp_directory):
             self.logger.info(
-                'Removing pre existing temporay directory: %s' % self.tmp_directory
+                'Removing pre existing '
+                'temporay directory: %s' % (
+                    self.tmp_directory)
             )
             shutil.rmtree(self.tmp_directory)
 
@@ -385,7 +389,8 @@ class MinitageCommonRecipe(object):
         if not os.path.isfile(configure) \
            and (not 'noconfigure' in self.options):
             self.logger.error('Unable to find the configure script')
-            raise core.MinimergeError('Invalid package contents, there is no configure script.')
+            raise core.MinimergeError('Invalid package contents, '
+                                      'there is no configure script.')
 
         return configure
 
@@ -438,17 +443,18 @@ class MinitageCommonRecipe(object):
                 shutil.move(tmp, self.prefix)
                 raise core.MinimergeError('Install failed:\n\t%s' % e)
         if os.path.exists(tmp):
-             shutil.rmtree(tmp)
+            shutil.rmtree(tmp)
         os.chdir(cwd)
 
-    def _download(self, url=None, destination=None, scm=None, revision=None, scm_args=None):
+    def _download(self, url=None, destination=None, 
+                  scm=None, revision=None, scm_args=None):
         """Download the archive."""
         self.logger.info('Download archive')
         if not url:
             url = self.url
 
         if not scm:
-           scm =  self.scm
+            scm =  self.scm
 
         if not destination:
             destination = self.download_cache
@@ -567,14 +573,14 @@ class MinitageCommonRecipe(object):
             b_cflags = [' -I%s ' % s \
                         for s in self.includes\
                         if s.strip()]
-            os.environ['CFLAGS']  =' '.join([
-                os.environ.get('CFLAGS',' ')]   + b_cflags
+            os.environ['CFLAGS']  = ' '.join([
+                os.environ.get('CFLAGS', ' ')]   + b_cflags
             )
-            os.environ['CPPFLAGS']=' '.join([
-                os.environ.get('CPPFLAGS',' ')] + b_cflags
+            os.environ['CPPFLAGS'] = ' '.join([
+                os.environ.get('CPPFLAGS', ' ')] + b_cflags
             )
-            os.environ['CXXFLAGS']=' '.join([
-                os.environ.get('CXXFLAGS',' ')] + b_cflags
+            os.environ['CXXFLAGS'] = ' '.join([
+                os.environ.get('CXXFLAGS', ' ')] + b_cflags
             )
 
     def _unpack(self, fname, directory=None):
@@ -586,7 +592,8 @@ class MinitageCommonRecipe(object):
         u = unpack_f(fname)
         u.unpack(fname, directory)
 
-    def _patch(self, directory, patch_cmd=None, patch_options=None, patches =None):
+    def _patch(self, directory, patch_cmd=None, 
+               patch_options=None, patches =None):
         """Aplying patches in pwd directory."""
         if not patch_cmd:
             patch_cmd = self.patch_cmd
@@ -599,12 +606,12 @@ class MinitageCommonRecipe(object):
             cwd = os.getcwd()
             os.chdir(directory)
             for patch in patches:
-                 system('%s -t %s < %s' %
-                        (patch_cmd,
-                         patch_options,
-                         patch),
-                        self.logger
-                       )
+                system('%s -t %s < %s' %
+                       (patch_cmd,
+                        patch_options,
+                        patch),
+                       self.logger
+                      )
             os.chdir(cwd)
 
     def update(self):

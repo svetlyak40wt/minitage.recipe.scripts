@@ -96,7 +96,8 @@ class Recipe(common.MinitageCommonRecipe):
             os.chdir(cwd)
             self.logger.info('Completed install.')
         except Exception, e:
-            self.logger.error('Compilation error. The package is left as is at %s where '
+            self.logger.error('Compilation error. '
+                              'The package is left as is at %s where '
                       'you can inspect what went wrong' % self.tmp_directory)
             self.logger.error('Message was:\n\t%s' % e)
             raise core.MinimergeError('Recipe failed, cant install.')

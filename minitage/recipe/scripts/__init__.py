@@ -131,9 +131,11 @@ class Recipe(egg.Recipe):
                                 del script_content[0]
                             script = script_template % {
                                 'python': self.executable,
-                                'path': '\',\n\''.join(ws.entries+self.extra_paths),
+                                'path': '\',\n\''.join(
+                                    ws.entries+self.extra_paths),
                                 'code': ''.join(script_content),
-                                'initialization': self.options.get('initialization', ''),
+                                'initialization': self.options.get(
+                                    'initialization', ''),
                             }
 
                         open(inst_script, 'w').writelines(script)
