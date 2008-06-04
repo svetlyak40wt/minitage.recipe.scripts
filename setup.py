@@ -16,19 +16,12 @@ def read(rnames):
 setup(
     name=name,
     version=version,
-    description="zc.buildout recipe for compiling and installing source distributions.",
+    description="zc.buildout recipe for compiling and installing software or python packages.",
     long_description= (
         read('README.txt')
         + '\n' +
         read('CHANGES.txt')
-        + '\n' +
-        'Detailed Documentation\n'
-        '**********************\n'
-        + '\n' +
-        read('README.txt')
-        + '\n' +
-        'Download\n'
-        '***********************\n'
+        + '\n' 
     ),
     classifiers=[
         'Framework :: Buildout',
