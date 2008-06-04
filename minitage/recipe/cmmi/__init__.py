@@ -61,6 +61,9 @@ class Recipe(common.MinitageCommonRecipe):
             # set pypath
             self._set_py_path()
 
+            # preconfigure hook
+            self._call_hook('post-unpack-hook') 
+
             # choose configure
             self.configure = self._choose_configure(self.compil_dir)
             self.options['compile-directory'] = self.build_dir
