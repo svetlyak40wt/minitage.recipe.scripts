@@ -10,8 +10,6 @@ The recipe has those entry point:
     - eggs: install python eggs / packages 'setuptoolisables'
     - scripts: install scripts from an egg.
 
-
-
 The reasons why i have rewrite yet another buildout recipe builder are:
     - Support on the fly patchs
     - Support hookss
@@ -19,5 +17,3 @@ The reasons why i have rewrite yet another buildout recipe builder are:
     - Robust offline mode
     - We like pypi, but offer a mode to not use it if we do not want to.
 
-
-.. _zc.recipe.cmmi : http://cheeseshop.python.org/pypi/zc.recipe.cmmi
