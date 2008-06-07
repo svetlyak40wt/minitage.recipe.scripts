@@ -36,12 +36,14 @@ setup(
     url='http://cheeseshop.python.org/pypi/%s' % name,
     license='GPL',
     packages=find_packages(exclude=['ez_setup']),
-    namespace_packages=['minitage.recipe'],
+    namespace_packages=['minitage', name],
     include_package_data=True,
     zip_safe=False,
-    install_requires = ['zc.buildout',
-                        'setuptools',
-                        'minitage.core'],
+    install_requires = [
+        'zc.buildout',
+        'setuptools',
+        'minitage.core'
+    ],
     #tests_require = ['zope.testing'],
     #test_suite = '%s.tests.test_suite' % name,
     # adding zdu, setuptools seems to order recipes executions
