@@ -63,7 +63,10 @@ class MinitageCommonRecipe(object):
         self.md5 = self.options.get('md5sum', None)
 
         # system variables
-        self.uname = os.uname()[0]
+        self.uname = sys.platform
+        # linuxXXX ? 
+        if 'linux' in self.uname:
+            self.uname = 'linux'
         self.cwd = os.getcwd()
         self.minitage_directory = os.path.abspath(
             os.path.join(self.buildout['buildout']['directory'], '..', '..')
@@ -197,7 +200,7 @@ class MinitageCommonRecipe(object):
         # if wehave gmake setted, use gmake too.
         gnumake = 'make'
         if self.buildout.get('part', {}).get('gmake', None)\
-           and self.uname != 'Linux':
+           and self.uname not in ['cygwin', 'linux']:
             gnumake = 'gmake'
         self.make_cmd = self.options.get('make-binary', gnumake).strip()
 
@@ -561,7 +564,8 @@ class MinitageCommonRecipe(object):
                 # >= osx Leopard
                 darwin_ldflags = ' -mmacosx-version-min=10.5.0 '
             os.environ['LDFLAGS'] = ' '.join(
-                [os.environ.get('LDFLAGS',' ')]
+                ['-L/usr/lib -L/lib -Wl,-rpath -Wl,/usr/lib -Wl,-rpath -Wl,/lib', 
+                os.environ.get('LDFLAGS',' ')]
                 + [' -L%s -Wl,-rpath -Wl,%s ' % (s,s) \
                    for s in self.libraries \
                    + [os.path.join(self.prefix, 'lib')]
