@@ -564,13 +564,13 @@ class MinitageCommonRecipe(object):
                 # >= osx Leopard
                 darwin_ldflags = ' -mmacosx-version-min=10.5.0 '
             os.environ['LDFLAGS'] = ' '.join(
-                ['-L/usr/lib -L/lib -Wl,-rpath -Wl,/usr/lib -Wl,-rpath -Wl,/lib', 
-                os.environ.get('LDFLAGS',' ')]
+                [os.environ.get('LDFLAGS',' ')]
                 + [' -L%s -Wl,-rpath -Wl,%s ' % (s,s) \
                    for s in self.libraries \
                    + [os.path.join(self.prefix, 'lib')]
                    if s.strip()]
-                + [darwin_ldflags]
+                + [darwin_ldflags,
+                  '-L/usr/lib -L/lib -Wl,-rpath -Wl,/usr/lib -Wl,-rpath -Wl,/lib']
             )
 
         if self.includes:
