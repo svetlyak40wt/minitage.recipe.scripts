@@ -154,7 +154,7 @@ class Recipe(common.MinitageCommonRecipe):
         # downloading
         # fname = self._download()
         self._call_hook('post-download-hook')
-        fname = self._download()
+        fname = self._download(scm = self.scm)
 
         dists = []
         # if it is a repo, making a local copy

@@ -456,9 +456,6 @@ class MinitageCommonRecipe(object):
         if not url:
             url = self.url
 
-        if not scm:
-            scm =  self.scm
-
         if not destination:
             destination = self.download_cache
 

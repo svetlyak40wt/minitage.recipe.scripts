@@ -1,5 +1,8 @@
 CHANGES
 ===========
+0.0.3
+----------------
+ - fix scm choice when there are eggs and url in the same part
 
 0.0.2
 ----------------
