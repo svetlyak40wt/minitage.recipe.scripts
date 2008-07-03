@@ -555,7 +555,7 @@ class MinitageCommonRecipe(object):
 
         if self.libraries:
             darwin_ldflags = ''
-            if self.uname == 'Darwin':
+            if self.uname == 'darwin':
                 # need to cut backward comatibility in the linker
                 # to get the new rpath feature present
                 # >= osx Leopard
@@ -566,9 +566,13 @@ class MinitageCommonRecipe(object):
                    for s in self.libraries \
                    + [os.path.join(self.prefix, 'lib')]
                    if s.strip()]
-                + [darwin_ldflags,
-                  '-L/usr/lib -L/lib -Wl,-rpath -Wl,/usr/lib -Wl,-rpath -Wl,/lib']
+                + [darwin_ldflags]
             )
+            if self.uname == 'cygwin':
+                os.environ['LDFLAGS'] = ' '.join(
+                    [os.environ['LDFLAGS'], 
+                     '-L/usr/lib -L/lib -Wl,-rpath -Wl,/usr/lib -Wl,-rpath -Wl,/lib']
+                )
 
         if self.includes:
             b_cflags = [' -I%s ' % s \
