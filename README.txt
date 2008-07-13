@@ -4,6 +4,11 @@ Recipe for compiling and installing software
 
 .. contents::
 
+=======================
+README
+=======================
+
+
 The recipe has those entry point:
     - cmmi: install configure/make/make install softwares
     - du: install distutils based python packages

@@ -1,11 +1,18 @@
-CHANGES
-===========
+=======================
+CHANGELOG
+=======================
+
 0.0.3
-----------------
+=======
  - fix scm choice when there are eggs and url in the same part
 
 0.0.2
-----------------
+======
+ - bugfix version
  - fix linking problem
+
+0.0.1
+======
+ - Initial version
 
 

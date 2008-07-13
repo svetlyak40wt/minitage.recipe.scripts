@@ -590,7 +590,7 @@ class Recipe(common.MinitageCommonRecipe):
         self._set_path()
         self._set_pkgconfigpath()
         self._set_compilation_flags()
-        if self.uname == 'Darwin':
+        if self.uname == 'darwin':
             os.environ['MACOSX_DEPLOYMENT_TARGET'] = '10.5'
 
 # vim:set et sts=4 ts=4 tw=80:

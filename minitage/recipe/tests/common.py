@@ -289,7 +289,7 @@ class Test(unittest.TestCase):
         os.environ['CFLAGS'] = ''
         os.environ['LDFLAGS'] = ''
         recipe = MinitageCommonRecipe(bd, '666', bd['part'])
-        recipe.uname = 'Darwin'
+        recipe.uname = 'darwin'
         recipe._set_compilation_flags()
         self.assertEquals(os.environ.get('LD_RUN_PATH')
                           , ':a:b:c:d:e:f:%s/lib'% (
