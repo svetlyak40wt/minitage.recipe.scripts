@@ -299,9 +299,10 @@ class Recipe(common.MinitageCommonRecipe):
         # maybe extract time
         location = dist.location
         if not os.path.isdir(location):
-            location = tempfile.mkdtemp()
-            self._unpack(dist.location, location)
-            location = self._get_compil_dir(location)
+            if not location.endswith('.egg'):
+                location = tempfile.mkdtemp()
+                self._unpack(dist.location, location)
+                location = self._get_compil_dir(location)
         sub_prefix = self.options.get(
             '%s-build-dir' % ( dist.project_name.lower()),
             None
@@ -310,13 +311,14 @@ class Recipe(common.MinitageCommonRecipe):
             location = os.path.join(location, sub_prefix)
 
         self.options['compile-directory'] = location
-        # maybe patch time
-        self._patch(location, dist)
-        #maybe we have a hook
-        self._call_hook(
-            '%s-pre-setup-hook' % (dist.project_name.lower()),
-            location
-        )
+        if not location.endswith('.egg'):
+            # maybe patch time
+            self._patch(location, dist)
+            #maybe we have a hook
+            self._call_hook(
+                '%s-pre-setup-hook' % (dist.project_name.lower()),
+                location
+            )
         # compile time
         self._run_easy_install(tmp, ['%s' % location], ws=ws)
         # scan to seach resulted eggs.
@@ -385,7 +387,12 @@ class Recipe(common.MinitageCommonRecipe):
         if not caches:
             caches = []
 
-        args = ('-c', _easy_install_cmd, '-mUNxd', _safe_arg(prefix))
+        ez_args = '-mU'
+        if not self.options.get('ez-dependencies'):
+            ez_args += 'N'
+        ez_args += 'xd'
+
+        args = ('-c', _easy_install_cmd, ez_args, _safe_arg(prefix))
         if self.zip_safe:
             args += ('-Z', )
 
@@ -407,6 +414,10 @@ class Recipe(common.MinitageCommonRecipe):
             if spec.startswith('/') and os.path.isdir(spec):
                 os.chdir(spec)
 
+            # ugly fix to avoid python namespaces conflicts
+            if os.path.isdir('setuptools'):
+                os.chdir('/') 
+            
             self.logger.info('Running easy_install: \n%s "%s"\n',
                              self.executable,
                              '" "'.join(largs))
@@ -480,72 +491,72 @@ class Recipe(common.MinitageCommonRecipe):
             raise zc.buildout.UserError(
                 "Couln't download distribution %s." % avail)
 
-        if dist.precedence == pkg_resources.EGG_DIST:
-            # It's already an egg, just fetch it into the dest
+        #if dist.precedence == pkg_resources.EGG_DIST:
+        #    # It's already an egg, just fetch it into the dest
 
-            newloc = os.path.join(
-                dest, os.path.basename(dist.location))
+        #    newloc = os.path.join(
+        #        dest, os.path.basename(dist.location))
 
-            if os.path.isdir(dist.location):
-                # we got a directory. It must have been
-                # obtained locally.  Just copy it.
-                shutil.copytree(dist.location, newloc)
-            else:
+        #    if os.path.isdir(dist.location):
+        #        # we got a directory. It must have been
+        #        # obtained locally.  Just copy it.
+        #        shutil.copytree(dist.location, newloc)
+        #    else:
 
-                if self.zip_safe:
-                    should_unzip = True
-                else:
-                    metadata = pkg_resources.EggMetadata(
-                        zipimport.zipimporter(dist.location)
-                        )
-                    should_unzip = (
-                        metadata.has_metadata('not-zip-safe')
-                        or
-                        not metadata.has_metadata('zip-safe')
-                        )
+        #        if self.zip_safe:
+        #            should_unzip = True
+        #        else:
+        #            metadata = pkg_resources.EggMetadata(
+        #                zipimport.zipimporter(dist.location)
+        #                )
+        #            should_unzip = (
+        #                metadata.has_metadata('not-zip-safe')
+        #                or
+        #                not metadata.has_metadata('zip-safe')
+        #                )
 
-                if should_unzip:
-                    backup = None
-                    if os.path.exists(newloc):
-                        backup = '.'.join([newloc, 'old'])
-                        if os.path.exists(backup):
-                            message = 'There is already a backuped egg in %s'
-                            self.logger.error(message % backup)
-                            raise core.MinimergeError('Recipe failed, please '
-                                                      'remove the old backup '
-                                                      ' or deal with it.')
-                        self.logger.info('Warning, renaming previously existing'
-                                         ' %s egg in cache' % newloc)
-                        os.rename(newloc, backup)
-                    try:
-                        setuptools.archive_util.unpack_archive(
-                            dist.location, newloc)
-                        # if is it not in error, remove backup
-                        if backup:
-                            remove_path(backup)
-                    except:
-                        if backup:
-                            self.logger.info('Removing incomplete %s' % newloc)
-                            if os.path.exists(newloc):
-                                remove_path(newloc)
-                            self.logger.info('Restoring %s' % newloc)
-                            os.rename(backup, newloc)
-                            raise core.MinimergeError(
-                                '%s egg compilation failed' % dist.project_name)
-                else:
-                    shutil.copyfile(dist.location, newloc)
+        #        if should_unzip:
+        #            backup = None
+        #            if os.path.exists(newloc):
+        #                backup = '.'.join([newloc, 'old'])
+        #                if os.path.exists(backup):
+        #                    message = 'There is already a backuped egg in %s'
+        #                    self.logger.error(message % backup)
+        #                    raise core.MinimergeError('Recipe failed, please '
+        #                                              'remove the old backup '
+        #                                              ' or deal with it.')
+        #                self.logger.info('Warning, renaming previously existing'
+        #                                 ' %s egg in cache' % newloc)
+        #                os.rename(newloc, backup)
+        #            try:
+        #                setuptools.archive_util.unpack_archive(
+        #                    dist.location, newloc)
+        #                # if is it not in error, remove backup
+        #                if backup:
+        #                    remove_path(backup)
+        #            except:
+        #                if backup:
+        #                    self.logger.info('Removing incomplete %s' % newloc)
+        #                    if os.path.exists(newloc):
+        #                        remove_path(newloc)
+        #                    self.logger.info('Restoring %s' % newloc)
+        #                    os.rename(backup, newloc)
+        #                    raise core.MinimergeError(
+        #                        '%s egg compilation failed' % dist.project_name)
+        #        else:
+        #            shutil.copyfile(dist.location, newloc)
 
-            # Getting the dist from the environment causes the
-            # distribution meta data to be read.  Cloning isn't
-            # good enough.
-            dists = pkg_resources.Environment(
-                [newloc],
-                python=self.executable_version,
-                )[dist.project_name]
-        else:
-            # It's some other kind of dist.  We'll let setup.py
-            # make the stuff
-            dist = self._install_distribution(dist, dest, ws)
+        #    # Getting the dist from the environment causes the
+        #    # distribution meta data to be read.  Cloning isn't
+        #    # good enough.
+        #    dists = pkg_resources.Environment(
+        #        [newloc],
+        #        python=self.executable_version,
+        #        )[dist.project_name]
+        #else:
+        # It's some other kind of dist.  We'll let setup.py
+        # make the stuff
+        dist = self._install_distribution(dist, dest, ws)
 
         self._env.scan(search_pathes)
         dist = self._env.best_match(requirement, ws)

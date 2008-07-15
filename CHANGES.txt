@@ -2,6 +2,12 @@
 CHANGELOG
 =======================
 
+0.0.6
+=======
+ - Change the eggs installation way to do, now using easy_install everywhere
+   Also include a buildout option to allow to include eggs dependencies (ez-dependencies=true)
+ - Set the __doc__ variable in scripts to fix some scripts like bzr.
+
 0.0.3
 =======
  - fix scm choice when there are eggs and url in the same part
