@@ -2,11 +2,11 @@ import os
 from setuptools import setup, find_packages
 setupdir = os.path.abspath(
     os.path.dirname(__file__)
-) 
+)
 os.chdir(setupdir)
 
 name='minitage.recipe'
-version = '0.0.6'
+version = '0.0.7'
 
 def read(rnames):
     return open(
@@ -21,7 +21,7 @@ setup(
         read('README.txt')
         + '\n' +
         read('CHANGES.txt')
-        + '\n' 
+        + '\n'
     ),
     classifiers=[
         'Framework :: Buildout',

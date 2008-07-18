@@ -64,7 +64,7 @@ class MinitageCommonRecipe(object):
 
         # system variables
         self.uname = sys.platform
-        # linuxXXX ? 
+        # linuxXXX ?
         if 'linux' in self.uname:
             self.uname = 'linux'
         self.cwd = os.getcwd()
@@ -247,7 +247,7 @@ class MinitageCommonRecipe(object):
         self.pkgconfigpath = splitstrip(self.options.get('pkgconfigpath', ''))
 
         # python path
-        self.pypath = [self.buildout['buildout']['directory'], 
+        self.pypath = [self.buildout['buildout']['directory'],
                        self.options['location']]
         self.pypath.extend(self.pypath)
         self.pypath.extend(
@@ -449,7 +449,7 @@ class MinitageCommonRecipe(object):
             shutil.rmtree(tmp)
         os.chdir(cwd)
 
-    def _download(self, url=None, destination=None, 
+    def _download(self, url=None, destination=None,
                   scm=None, revision=None, scm_args=None):
         """Download the archive."""
         self.logger.info('Download archive')
@@ -570,10 +570,28 @@ class MinitageCommonRecipe(object):
             )
             if self.uname == 'cygwin':
                 os.environ['LDFLAGS'] = ' '.join(
-                    [os.environ['LDFLAGS'], 
+                    [os.environ['LDFLAGS'],
                      '-L/usr/lib -L/lib -Wl,-rpath -Wl,/usr/lib -Wl,-rpath -Wl,/lib']
                 )
 
+        os.environ['CFLAGS']  = ' '.join([
+            os.environ.get('CFLAGS', ' '),
+            ' ',
+            self.minimerge._config._sections.get('minitage.compiler', {}).get('cflags', ''),
+            ' ']
+        )
+        os.environ['LDFLAGS']  = ' '.join([
+            os.environ.get('LDFLAGS', ' '),
+            ' ',
+            self.minimerge._config._sections.get('minitage.compiler', {}).get('ldflags', ''),
+            ' ']
+        )
+        os.environ['MAKEOPTS']  = ' '.join([
+            os.environ.get('MAKEOPTS', ' '),
+            ' ',
+            self.minimerge._config._sections.get('minitage.compiler', {}).get('makeopts', ''),
+            ' ']
+        )
         if self.includes:
             b_cflags = [' -I%s ' % s \
                         for s in self.includes\
@@ -597,7 +615,7 @@ class MinitageCommonRecipe(object):
         u = unpack_f(fname)
         u.unpack(fname, directory)
 
-    def _patch(self, directory, patch_cmd=None, 
+    def _patch(self, directory, patch_cmd=None,
                patch_options=None, patches =None):
         """Aplying patches in pwd directory."""
         if not patch_cmd:
