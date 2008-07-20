@@ -481,6 +481,7 @@ class MinitageCommonRecipe(object):
 
             scm_dir = os.path.join(
                 destination, scm)
+            os.makedirs(scm_dir)
 
 
             subdir = url.replace('://', '/').replace('/', '.')

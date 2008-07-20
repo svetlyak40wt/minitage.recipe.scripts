@@ -2,6 +2,10 @@
 CHANGELOG
 =======================
 
+0.0.8
+=======
+ - minor fix for scm check outs
+
 0.0.7
 =======
  - add C compiler cflags/ldflags/makeopts customistation options
