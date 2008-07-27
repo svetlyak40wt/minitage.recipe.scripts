@@ -250,7 +250,7 @@ class Recipe(common.MinitageCommonRecipe):
             dist, avail = self.inst._satisfied(requirement)
             if dist is None:
                 if avail is None:
-                    env = pkg_resources.Environment([self.download_cache])
+                    env = pkg_resources.Environment([self.download_cache], python=self.executable_version)
                     sdists = []
                     for file in os.listdir(self.download_cache):
                         # try to scan source distribtion
@@ -432,7 +432,7 @@ class Recipe(common.MinitageCommonRecipe):
                     _safe_arg (self.executable),
                     *largs)
                 if exit_code > 0:
-                    raise
+                    raise core.MinimergeError( "easy install failed")
             except Exception, e:
                 raise core.MinimergeError(
                     'PythonPackage via easy_install Install failed'

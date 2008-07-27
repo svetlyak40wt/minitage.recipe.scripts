@@ -2,6 +2,11 @@
 CHANGELOG
 =======================
 
+0.0.9
+=======
+ - minor fix for run without minitage
+ - fix for long path/compilation flags
+
 0.0.8
 =======
  - minor fix for scm check outs

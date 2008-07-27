@@ -14,6 +14,7 @@
 
 __docformat__ = 'restructuredtext en'
 
+import copy
 import datetime
 import imp
 import logging
@@ -36,6 +37,19 @@ from minitage.core import core
 from minitage.core import interfaces
 
 __logger__ = 'minitage.recipe'
+
+def appendVar(var, values, separator='', before=False):
+    oldvar = copy.deepcopy(var)
+    tmp = separator.join([value for value in values if not value in var])
+    if before:
+        if not tmp:
+            separator = ''
+        var = "%s%s%s" % (oldvar, separator,  tmp)
+    else:
+        if not oldvar:
+            separator = ''
+        var = "%s%s%s" % (tmp, separator, oldvar)
+    return var
 
 class MinitageCommonRecipe(object):
     """
@@ -526,15 +540,16 @@ class MinitageCommonRecipe(object):
             self.pypath.extend(ws.entries)
         os.environ['PYTHONPATH'] = ':'.join(self.pypath)
 
+
     def _set_path(self):
         """Set path."""
         self.logger.info('Setting path')
-        os.environ['PATH'] = ':'.join(
-            self.path
-            + [self.buildout['buildout']['directory']]
-            + [self.options['location']]
-            + os.environ.get('PATH', '').split(':')
-        )
+        os.environ['PATH'] = appendVar(os.environ['PATH'], 
+                     self.path\
+                     + [self.buildout['buildout']['directory'],
+                        self.options['location']]\
+                     , ':')
+
 
     def _set_pkgconfigpath(self):
         """Set PKG-CONFIG-PATH."""
@@ -548,11 +563,12 @@ class MinitageCommonRecipe(object):
         """Set CFALGS/LDFLAGS."""
         self.logger.info('Setting compilation flags')
         if self.rpath:
-            os.environ['LD_RUN_PATH'] = ':'.join(
-                [os.environ.get('LD_RUN_PATH','')]
-                + [s for s in self.rpath\
-                   if s.strip()]
-                + [os.path.join(self.prefix, 'lib')]
+            os.environ['LD_RUN_PATH'] = appendVar(
+                os.environ.get('LD_RUN_PATH', ''),
+                [s for s in self.rpath\
+                 if s.strip()]
+                + [os.path.join(self.prefix, 'lib')],
+                ':'
             )
 
         if self.libraries:
@@ -562,51 +578,64 @@ class MinitageCommonRecipe(object):
                 # to get the new rpath feature present
                 # >= osx Leopard
                 darwin_ldflags = ' -mmacosx-version-min=10.5.0 '
-            os.environ['LDFLAGS'] = ' '.join(
-                [os.environ.get('LDFLAGS',' ')]
-                + [' -L%s -Wl,-rpath -Wl,%s ' % (s,s) \
-                   for s in self.libraries \
-                   + [os.path.join(self.prefix, 'lib')]
-                   if s.strip()]
-                + [darwin_ldflags]
+            
+            os.environ['LDFLAGS'] = appendVar(
+                os.environ.get('LDFLAGS',''),
+                ['-L%s -Wl,-rpath -Wl,%s' % (s,s) \
+                 for s in self.libraries + [os.path.join(self.prefix, 'lib')]
+                 if s.strip()]
+                + [darwin_ldflags] ,
+                ' '
             )
+            
             if self.uname == 'cygwin':
                 os.environ['LDFLAGS'] = ' '.join(
                     [os.environ['LDFLAGS'],
                      '-L/usr/lib -L/lib -Wl,-rpath -Wl,/usr/lib -Wl,-rpath -Wl,/lib']
                 )
 
-        os.environ['CFLAGS']  = ' '.join([
-            os.environ.get('CFLAGS', ' '),
-            ' ',
-            self.minimerge._config._sections.get('minitage.compiler', {}).get('cflags', ''),
-            ' ']
-        )
-        os.environ['LDFLAGS']  = ' '.join([
-            os.environ.get('LDFLAGS', ' '),
-            ' ',
-            self.minimerge._config._sections.get('minitage.compiler', {}).get('ldflags', ''),
-            ' ']
-        )
-        os.environ['MAKEOPTS']  = ' '.join([
-            os.environ.get('MAKEOPTS', ' '),
-            ' ',
-            self.minimerge._config._sections.get('minitage.compiler', {}).get('makeopts', ''),
-            ' ']
-        )
-        if self.includes:
-            b_cflags = [' -I%s ' % s \
-                        for s in self.includes\
-                        if s.strip()]
+        if self.minimerge:
             os.environ['CFLAGS']  = ' '.join([
-                os.environ.get('CFLAGS', ' ')]   + b_cflags
+                os.environ.get('CFLAGS', ' '),
+                ' ',
+                self.minimerge._config._sections.get('minitage.compiler', {}).get('cflags', ''),
+                ' ']
             )
-            os.environ['CPPFLAGS'] = ' '.join([
-                os.environ.get('CPPFLAGS', ' ')] + b_cflags
+            os.environ['LDFLAGS']  = ' '.join([
+                os.environ.get('LDFLAGS', ' '),
+                ' ',
+                self.minimerge._config._sections.get('minitage.compiler', {}).get('ldflags', ''),
+                ' ']
             )
-            os.environ['CXXFLAGS'] = ' '.join([
-                os.environ.get('CXXFLAGS', ' ')] + b_cflags
+            os.environ['MAKEOPTS']  = ' '.join([
+                os.environ.get('MAKEOPTS', ' '),
+                ' ',
+                self.minimerge._config._sections.get('minitage.compiler', {}).get('makeopts', ''),
+                ' ']
             )
+        if self.includes:
+            os.environ['CFLAGS'] = appendVar(
+                os.environ.get('CFLAGS', ''),
+                ['-I%s' % s \
+                 for s in self.includes\
+                 if s.strip()]
+                ,' '
+            )
+            os.environ['CPPFLAGS'] = appendVar(
+                os.environ.get('CPPFLAGS', ''),
+                ['-I%s' % s \
+                 for s in self.includes\
+                 if s.strip()]
+                ,' '
+            )
+            os.environ['CXXFLAGS'] = appendVar(
+                os.environ.get('CXXFLAGS', ''),
+                ['-I%s' % s \
+                 for s in self.includes\
+                 if s.strip()]
+                ,' '
+            )
+            
 
     def _unpack(self, fname, directory=None):
         """Unpack something"""

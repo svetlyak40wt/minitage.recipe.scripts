@@ -164,6 +164,7 @@ class Test(unittest.TestCase):
 
     def setUp(self):
         """setUp."""
+        os.chdir('/')
         write(fp, CMMI)
         os.makedirs(tmp)
 
@@ -172,7 +173,7 @@ class Test(unittest.TestCase):
         shutil.rmtree(tmp)
         recipe = None
 
-    def testOptions(self):
+    def taestOptions(self):
         """testCommon."""
         bd = Buildout(fp, [])
         recipe = MinitageCommonRecipe(bd, '666', bd['part'])
@@ -292,16 +293,16 @@ class Test(unittest.TestCase):
         recipe.uname = 'darwin'
         recipe._set_compilation_flags()
         self.assertEquals(os.environ.get('LD_RUN_PATH')
-                          , ':a:b:c:d:e:f:%s/lib'% (
+                          , 'a:b:c:d:e:f:%s/lib'% (
                               '/lib:'.join(recipe.minitage_dependencies+\
                                       recipe.minitage_eggs
                                            + [recipe.prefix])
                           )
                          )
         self.assertEquals(os.environ.get('CFLAGS'),
-                          '  -Ia   -Ib   -Ic   -Id   -Ie   -If %s ' % (
-                              '  -I%s/include' % (
-                                  '/include   -I'.join(
+                          '-Ia -Ib -Ic -Id -Ie -If %s' % (
+                              '-I%s/include' % (
+                                  '/include -I'.join(
                                       recipe.minitage_dependencies+\
                                       recipe.minitage_eggs
                                   )
@@ -316,11 +317,11 @@ class Test(unittest.TestCase):
             'part') in recipe.minitage_dependencies)
         self.assertEquals(os.environ.get('LDFLAGS'),
                           '%s%s' %(
-                              ''.join(['  -L%s/lib -Wl,-rpath -Wl,%s/lib ' % (s,s) \
+                              ''.join(['-L%s/lib -Wl,-rpath -Wl,%s/lib ' % (s,s) \
                                        for s in ['a','b','c','d','e','f'] \
                                        + recipe.minitage_dependencies +
                                        recipe.minitage_eggs + [recipe.prefix]]),
-                              '  -mmacosx-version-min=10.5.0 ',
+                              ' -mmacosx-version-min=10.5.0 ',
                           )
                          )
 
@@ -597,7 +598,7 @@ chmod +x configure
         recipe.install()
         self.assertTrue(os.path.join(tmp, 'bin', 's'))
 
-    def testCleanup(self):
+    def testZCleanup(self):
         p = tmp
         make_fakeegg(tmp)
         os.system('cd %s;tar cjvf b.tbz2 a' % d)
