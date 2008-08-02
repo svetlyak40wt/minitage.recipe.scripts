@@ -2,6 +2,10 @@
 CHANGELOG
 =======================
 
+0.0.10
+=======
+ - Add pyc regeneration feature stolen from zc.buildout
+
 0.0.9
 =======
  - minor fix for run without minitage

@@ -27,7 +27,7 @@ import urllib2
 import urlparse
 
 import pkg_resources
-from zc.buildout.easy_install import _safe_arg, _easy_install_cmd
+from zc.buildout.easy_install import _safe_arg, _easy_install_cmd, redo_pyc
 import zc.buildout.easy_install
 
 from minitage.recipe import common
@@ -369,6 +369,8 @@ class Recipe(common.MinitageCommonRecipe):
                     os.remove(newloc)
 
             os.rename(d.location, newloc)
+            # regenerate pyc's in this directory
+            redo_pyc(newloc)
 
             [d] = pkg_resources.Environment(
                 [newloc],
