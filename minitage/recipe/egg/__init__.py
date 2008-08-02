@@ -370,7 +370,7 @@ class Recipe(common.MinitageCommonRecipe):
 
             os.rename(d.location, newloc)
             # regenerate pyc's in this directory
-            redo_pyc(newloc)
+            redo_pyc(os.path.abspath(newloc))
 
             [d] = pkg_resources.Environment(
                 [newloc],
