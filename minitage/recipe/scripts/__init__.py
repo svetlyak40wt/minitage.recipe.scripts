@@ -94,6 +94,21 @@ class Recipe(egg.Recipe):
             self._dest
         )
 
+        reqs_keys = [req[0] for req in ws.entry_keys.values()]
+        lreqs = '\n'.join(reqs_keys)
+        lreqs = pkg_resources.parse_requirements(lreqs)
+        sitepackages = re.sub('bin.*', 
+                               'lib/python%s/site-packages' % self.executable_version, 
+                               self.executable)
+        scan_paths = [self.buildout['buildout']['develop-eggs-directory'], 
+                      self.buildout['buildout']['eggs-directory'],
+                      sitepackages] + self.extra_paths 
+        env = pkg_resources.Environment(scan_paths, python = self.executable_version)
+        required_dists = ws.resolve(lreqs, env)
+        for dist in required_dists:
+            if not dist in ws:
+                ws.add(dist)
+
         installed_scripts.extend(
             zc.buildout.easy_install.scripts(
                 reqs,

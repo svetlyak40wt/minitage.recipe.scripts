@@ -390,8 +390,10 @@ class Recipe(common.MinitageCommonRecipe):
             caches = []
 
         ez_args = '-mU'
-        if not self.options.get('ez-dependencies'):
+        # compatiblity thing: we test ez-dependencies to be there
+        if self.options.get('ez-nodependencies'):
             ez_args += 'N'
+ 
         ez_args += 'xd'
 
         args = ('-c', _easy_install_cmd, ez_args, _safe_arg(prefix))
