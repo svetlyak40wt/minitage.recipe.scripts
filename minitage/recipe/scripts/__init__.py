@@ -94,11 +94,11 @@ class Recipe(egg.Recipe):
             self._dest
         )
         reqs_keys = []
-        for reqs in ws.entry_keys.values():
-            for req in reqs:
+        for itereq in ws.entry_keys.values():
+            for req in itereq:
                 reqs_keys.append(req)
-        lreqs = '\n'.join(reqs_keys)
-        lreqs = pkg_resources.parse_requirements(lreqs)
+        lreqs = pkg_resources.parse_requirements('\n'.join(reqs_keys))
+        
         sitepackages = re.sub('bin.*', 
                                'lib/python%s/site-packages' % self.executable_version, 
                                self.executable)
