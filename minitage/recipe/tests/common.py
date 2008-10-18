@@ -159,7 +159,7 @@ def write(f, data):
     f.flush()
     f.close()
 
-class Test(unittest.TestCase):
+class RecipeTest(unittest.TestCase):
     """Test usage for minimerge."""
 
     def setUp(self):
@@ -787,9 +787,9 @@ diff -ur old/setup.py new/setup.py
         self.assertEquals( '# i am a comment which changed\n', l1[-1])
         self.assertEquals( '/* changed */\n', l2[-1])
 
-if __name__ == '__main__':
-    suite = unittest.TestSuite()
-    suite.addTest(unittest.makeSuite(Test))
-    unittest.TextTestRunner(verbosity=2).run(suite)
+def test_suite():
+    import pdb;pdb.set_trace()  ## Breakpoint ##
+    return unittest.makeSuite(RecipeTest)
+
 
 # vim:set et sts=4 ts=4 tw=80:
