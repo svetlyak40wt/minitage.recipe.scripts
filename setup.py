@@ -44,6 +44,7 @@ setup(
         'setuptools',
         'minitage.core'
     ],
+    extras_require={'test': ['IPython', 'zope.testing', 'mocker']},
     #tests_require = ['zope.testing'],
     #test_suite = '%s.tests.test_suite' % name,
     # adding zdu, setuptools seems to order recipes executions
