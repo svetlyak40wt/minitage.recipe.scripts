@@ -2,3 +2,6 @@
 build.*
 .*pyc
 dist.*
+eggs
+bin
+.installed.cfg
