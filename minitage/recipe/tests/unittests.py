@@ -788,8 +788,10 @@ diff -ur old/setup.py new/setup.py
         self.assertEquals( '/* changed */\n', l2[-1])
 
 def test_suite():
-    import pdb;pdb.set_trace()  ## Breakpoint ##
     return unittest.makeSuite(RecipeTest)
+
+if __name__ == '__main__' :
+    unittest.TextTestRunner(verbosity=2).run(test_suite())
 
 
 # vim:set et sts=4 ts=4 tw=80:
