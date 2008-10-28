@@ -35,7 +35,8 @@ setup(
     author_email='kiorky@cryptelium.net',
     url='http://cheeseshop.python.org/pypi/%s' % name,
     license='GPL',
-    packages=find_packages(exclude=['ez_setup']),
+    packages=find_packages('src'),
+    package_dir = {'': 'src'},
     namespace_packages=['minitage', name],
     include_package_data=True,
     zip_safe=False,
@@ -44,6 +45,7 @@ setup(
         'setuptools',
         'minitage.core'
     ],
+    extras_require={'test': ['IPython', 'zope.testing', 'mocker']},
     #tests_require = ['zope.testing'],
     #test_suite = '%s.tests.test_suite' % name,
     # adding zdu, setuptools seems to order recipes executions
