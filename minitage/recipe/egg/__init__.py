@@ -393,12 +393,14 @@ class Recipe(common.MinitageCommonRecipe):
         # compatiblity thing: we test ez-dependencies to be there
         if self.options.get('ez-nodependencies'):
             ez_args += 'N'
- 
+
         ez_args += 'xd'
 
         args = ('-c', _easy_install_cmd, ez_args, _safe_arg(prefix))
         if self.zip_safe:
             args += ('-Z', )
+        else:
+            args += ('-z', )
 
         args += ('-v', )
 
@@ -420,8 +422,8 @@ class Recipe(common.MinitageCommonRecipe):
 
             # ugly fix to avoid python namespaces conflicts
             if os.path.isdir('setuptools'):
-                os.chdir('/') 
-            
+                os.chdir('/')
+
             self.logger.info('Running easy_install: \n%s "%s"\n',
                              self.executable,
                              '" "'.join(largs))
