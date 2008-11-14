@@ -6,7 +6,7 @@ setupdir = os.path.abspath(
 os.chdir(setupdir)
 
 name='minitage.recipe'
-version = '0.0.15'
+version = '0.1'
 
 def read(rnames):
     return open(
@@ -55,6 +55,7 @@ setup(
         'zc.buildout' : [
             'default = %s:Recipe' % name,
             'du = %s:Recipe' % 'minitage.recipe.du',
+            'fetch = %s:Recipe' % 'minitage.recipe.fetch',
             'egg = %s:Recipe' % 'minitage.recipe.egg',
             'zdu = %s:Recipe' % 'minitage.recipe.du',
             'cmmi = %s:Recipe' % 'minitage.recipe.cmmi',

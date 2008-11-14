@@ -2,6 +2,10 @@
 CHANGELOG
 =======================
 
+0.1
+======
+    - add fetch recipe
+
 0.0.13
 =======
  - fix zip safe flag

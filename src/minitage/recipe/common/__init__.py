@@ -69,6 +69,7 @@ class MinitageCommonRecipe(object):
         # url from and scm type if any
         # the scm is one available in the 'fetchers' factory
         self.url = self.options.get('url', None)
+        self.urls = self.options.get('urls', '').strip().split('\n')
         self.scm = self.options.get('scm', None)
         self.revision = self.options.get('revision', None)
         self.scm_args = self.options.get('scm-args', None)
@@ -86,10 +87,12 @@ class MinitageCommonRecipe(object):
             os.path.join(self.buildout['buildout']['directory'], '..', '..')
         )
         # destination
-        options['location'] = os.path.join(
-            buildout['buildout']['parts-directory'],
-            options.get('name', self.name)
-        )
+        options['location'] = options.get('location', 
+                                          os.path.join(
+                                              buildout['buildout']['parts-directory'],
+                                              options.get('name', self.name)
+                                          )
+                                         )
         self.prefix = options['location']
 
         # configure script for cmmi packages
@@ -464,7 +467,7 @@ class MinitageCommonRecipe(object):
         os.chdir(cwd)
 
     def _download(self, url=None, destination=None,
-                  scm=None, revision=None, scm_args=None):
+                  scm=None, revision=None, scm_args=None, cache=True):
         """Download the archive."""
         self.logger.info('Download archive')
         if not url:
@@ -493,15 +496,14 @@ class MinitageCommonRecipe(object):
             if revision:
                 opts['revision'] = revision
 
-            scm_dir = os.path.join(
-                destination, scm)
-            if not os.path.isdir(scm_dir):
-                os.makedirs(scm_dir)
-
-
-            subdir = url.replace('://', '/').replace('/', '.')
-            scm_dest = os.path.join(
-                scm_dir,subdir )
+            scm_dest = destination
+            if cache:
+                scm_dir = os.path.join(
+                    destination, scm)
+                if not os.path.isdir(scm_dir):
+                    os.makedirs(scm_dir)
+                subdir = url.replace('://', '/').replace('/', '.')
+                scm_dest = os.path.join(scm_dir, subdir)
 
             # fetching now
             if not self.offline:
