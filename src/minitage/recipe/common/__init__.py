@@ -29,6 +29,9 @@ import urlparse
 import pkg_resources
 
 
+import subprocess
+
+
 import zc.buildout.easy_install
 from minitage.core.common import get_from_cache, system, splitstrip
 from minitage.core.unpackers.interfaces import IUnpackerFactory
@@ -713,7 +716,14 @@ class MinitageCommonRecipe(object):
     def _system(self, cmd):
         """Running a command."""
         self.logger.info('Running %s' % cmd)
-        ret = os.system(cmd)
+        p = subprocess.Popen(cmd, env=os.environ, shell=True)
+        ret = 0
+        try:
+            sts = os.waitpid(p.pid, 0)
+            ret = sts [1]
+        except:
+            ret = 1
+        # ret = os.system(cmd)
         if ret:
             raise  core.MinimergeError('Command failed: %s' % cmd)
 
