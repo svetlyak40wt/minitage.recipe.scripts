@@ -103,8 +103,9 @@ class MinitageCommonRecipe(object):
         # prefix separtor in ./configure --prefix%SEPARATOR%path
         self.prefix_separator = options.get('prefix-separator', '=')
         if self.prefix_separator == '':
-            self.prefix_separator = ' '
-
+            self.prefix_separator = ' ' 
+        self.prefix_option = self.options.get('prefix-option', 
+                                              '--prefix%s' % self.prefix_separator)
         # if we are installing in minitage, try to get the
         # minibuild name and object there.
         self.str_minibuild = os.path.split(self.cwd)[1]
@@ -426,9 +427,9 @@ class MinitageCommonRecipe(object):
         os.chdir(self.build_dir)
         if not 'noconfigure' in self.options:
             self._system(
-                    '%s --prefix%s%s %s' % (
+                    '%s %s%s %s' % (
                         configure,
-                        self.prefix_separator,
+                        self.prefix_option,
                         self.prefix,
                         self.configure_options
                     )
