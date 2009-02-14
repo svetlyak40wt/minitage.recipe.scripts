@@ -90,7 +90,7 @@ class MinitageCommonRecipe(object):
             os.path.join(self.buildout['buildout']['directory'], '..', '..')
         )
         # destination
-        options['location'] = options.get('location', 
+        options['location'] = options.get('location',
                                           os.path.join(
                                               buildout['buildout']['parts-directory'],
                                               options.get('name', self.name)
@@ -104,7 +104,8 @@ class MinitageCommonRecipe(object):
         self.prefix_separator = options.get('prefix-separator', '=')
         if self.prefix_separator == '':
             self.prefix_separator = ' '
-
+        self.prefix_option = self.options.get('prefix-option',
+                                              '--prefix%s' % self.prefix_separator)
         # if we are installing in minitage, try to get the
         # minibuild name and object there.
         self.str_minibuild = os.path.split(self.cwd)[1]
@@ -427,9 +428,9 @@ class MinitageCommonRecipe(object):
         os.chdir(self.build_dir)
         if not 'noconfigure' in self.options:
             self._system(
-                    '%s --prefix%s%s %s' % (
+                    '%s %s%s %s' % (
                         configure,
-                        self.prefix_separator,
+                        self.prefix_option,
                         self.prefix,
                         self.configure_options
                     )
@@ -550,7 +551,7 @@ class MinitageCommonRecipe(object):
     def _set_path(self):
         """Set path."""
         self.logger.info('Setting path')
-        os.environ['PATH'] = appendVar(os.environ['PATH'], 
+        os.environ['PATH'] = appendVar(os.environ['PATH'],
                      self.path\
                      + [self.buildout['buildout']['directory'],
                         self.options['location']]\
@@ -584,7 +585,7 @@ class MinitageCommonRecipe(object):
                 # to get the new rpath feature present
                 # >= osx Leopard
                 darwin_ldflags = ' -mmacosx-version-min=10.5.0 '
-            
+
             os.environ['LDFLAGS'] = appendVar(
                 os.environ.get('LDFLAGS',''),
                 ['-L%s -Wl,-rpath -Wl,%s' % (s,s) \
@@ -593,7 +594,7 @@ class MinitageCommonRecipe(object):
                 + [darwin_ldflags] ,
                 ' '
             )
-            
+
             if self.uname == 'cygwin':
                 os.environ['LDFLAGS'] = ' '.join(
                     [os.environ['LDFLAGS'],
@@ -641,7 +642,7 @@ class MinitageCommonRecipe(object):
                  if s.strip()]
                 ,' '
             )
-            
+
 
     def _unpack(self, fname, directory=None):
         """Unpack something"""
