@@ -223,6 +223,7 @@ class MinitageCommonRecipe(object):
            and self.uname not in ['cygwin', 'linux']:
             gnumake = 'gmake'
         self.make_cmd = self.options.get('make-binary', gnumake).strip()
+        self.make_options = self.options.get('make-options', '').strip()
 
         # what we will install.
         # if 'make-targets'  present, we get it line by line
@@ -441,7 +442,7 @@ class MinitageCommonRecipe(object):
         os.chdir(directory)
         for target in targets:
             try:
-                self._system('%s %s' % (self.make_cmd, target))
+                self._system('%s %s %s' % (self.make_cmd, self.make_options, target))
             except Exception, e:
                 message = 'Make failed for targets: %s' % targets
                 raise core.MinimergeError(message)
