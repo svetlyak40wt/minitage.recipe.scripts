@@ -2,6 +2,15 @@
 CHANGELOG
 =======================
 
+0.2 -> 0.5
+=============
+
+    - add make-options for make option in minitage.recipe.cmmi
+    - multiple bugfixes
+    - make things append in subprocess for environment conversation
+    - add initiaiization code for generated python interpreter in
+      minitage.recipe:scripts
+
 0.1
 ======
     - add fetch recipe
