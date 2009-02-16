@@ -126,7 +126,7 @@ class Recipe(egg.Recipe):
         )
 
 
-        interpreter = options.get('interpreter', '').strip()
+        interpreter = self.options.get('interpreter', '').strip()
         if interpreter:
             inst_script = os.path.join(
                 self.buildout['buildout']['bin-directory'],
@@ -136,7 +136,6 @@ class Recipe(egg.Recipe):
                 'python': self.executable,
                 'path': '\',\n\''.join(
                     ws.entries+self.extra_paths),
-                'code': ''.join(script_content),
                 'initialization': self.options.get('initialization', ''),
             } 
             open(inst_script, 'w').writelines(script)
@@ -210,9 +209,7 @@ py_script_template = """\
 
 import sys
     
-sys.path[0:0] = [
-  %(path)s,
-  ]
+sys.path[0:0] = [ '%(path)s', ]
 
 %(initialization)s
 
