@@ -52,6 +52,7 @@ class Recipe(egg.Recipe):
             if p.strip()
             ]
         if self.extra_paths:
+            self.extra_paths = [p for p in self.extra_paths if os.path.isdir(p)]
             options['extra-paths'] = '\n'.join(self.extra_paths)
 
     parse_entry_point = re.compile(
@@ -135,7 +136,9 @@ class Recipe(egg.Recipe):
             script = py_script_template % {
                 'python': self.executable,
                 'path': '\',\n\''.join(
-                    ws.entries+self.extra_paths),
+                    [p 
+                     for p in ws.entries+self.extra_paths
+                     if os.path.isdir(p)]),
                 'initialization': self.options.get('initialization', ''),
             } 
             open(inst_script, 'w').writelines(script)
@@ -172,7 +175,9 @@ class Recipe(egg.Recipe):
                             script = script_template % {
                                 'python': self.executable,
                                 'path': '\',\n\''.join(
-                                    ws.entries+self.extra_paths),
+                                    [p 
+                                    for p in ws.entries+self.extra_paths
+                                    if os.path.isdir(p)]),
                                 'code': ''.join(script_content),
                                 'initialization': self.options.get(
                                     'initialization', ''),
