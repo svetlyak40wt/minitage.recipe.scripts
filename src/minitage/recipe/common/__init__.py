@@ -15,29 +15,18 @@
 __docformat__ = 'restructuredtext en'
 
 import copy
-import datetime
 import imp
 import logging
 import os
-import setuptools.archive_util
-import sha
+import re
 import shutil
 import sys
-import tempfile
-import urllib2
-import urlparse
-import pkg_resources
-
-
 import subprocess
 
-
-import zc.buildout.easy_install
 from minitage.core.common import get_from_cache, system, splitstrip
 from minitage.core.unpackers.interfaces import IUnpackerFactory
 from minitage.core.fetchers.interfaces import IFetcherFactory
 from minitage.core import core
-from minitage.core import interfaces
 
 __logger__ = 'minitage.recipe'
 
@@ -73,10 +62,18 @@ class MinitageCommonRecipe(object):
         # the scm is one available in the 'fetchers' factory
         self.url = self.options.get('url', None)
         self.urls = self.options.get('urls', '').strip().split('\n')
+        self.urls.append(self.url)
+        self.urls = [re.sub('/$', '', u) for u in self.urls if u]
         self.scm = self.options.get('scm', None)
         self.revision = self.options.get('revision', None)
         self.scm_args = self.options.get('scm-args', None)
 
+        # update with the desired env. options
+        if 'environment' in options:
+            lenv = buildout.get(options['environment'].strip(), {})
+            for key in lenv:
+                os.environ[key] = lenv[key]
+        
         # maybe md5
         self.md5 = self.options.get('md5sum', None)
 
@@ -118,7 +115,11 @@ class MinitageCommonRecipe(object):
 
         # compilation flags
         self.includes = splitstrip(self.options.get('includes', ''))
-        self.libraries = splitstrip(self.options.get('libraries', ''))
+        self.includes += splitstrip(self.options.get('includes-dirs', ''))
+        self.libraries = splitstrip(self.options.get('library-dirs', ''))
+        self.libraries_names = ' '
+        for l in self.options.get('libraries', '').split():
+            self.libraries_names += '-l%s ' % l
         self.rpath = splitstrip(self.options.get('rpath', ''))
 
         # Defining the python interpreter used to install python stuff.
@@ -126,7 +127,11 @@ class MinitageCommonRecipe(object):
         # fallback to sys.executable or
         # python-2.4 if self.name = site-packages-2.4
         # python-2.5 if self.name = site-packages-2.5
-        self.executable = options.get('executable', sys.executable)
+        self.executable = os.path.abspath(options.get('executable', sys.executable))
+        if options.get('python'):
+            self.executable = self.buildout.get(
+                options['python'].strip(), 
+                {}).get('executable')
         if not 'executable' in options:
             # if we are an python package
             # just get the right interpreter for us.
@@ -600,6 +605,8 @@ class MinitageCommonRecipe(object):
                     [os.environ['LDFLAGS'],
                      '-L/usr/lib -L/lib -Wl,-rpath -Wl,/usr/lib -Wl,-rpath -Wl,/lib']
                 )
+        if self.libraries_names:
+            os.environ['LDFLAGS'] = ' '.join([os.environ['LDFLAGS'], self.libraries_names]).strip()
 
         if self.minimerge:
             os.environ['CFLAGS']  = ' '.join([
@@ -642,7 +649,6 @@ class MinitageCommonRecipe(object):
                  if s.strip()]
                 ,' '
             )
-
 
     def _unpack(self, fname, directory=None):
         """Unpack something"""

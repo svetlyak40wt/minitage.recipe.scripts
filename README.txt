@@ -11,11 +11,13 @@ README
 
 The recipe has those entry point:
     - cmmi: install configure/make/make install softwares
-    - du: install distutils based python packages
+    - fetch: fetch something somewhere
     - eggs: install python eggs / packages 'setuptoolisables'
-    - scripts: install scripts from an egg.
+    - scripts: install scripts from an egg and install egg dependencies if they
+      are not already in the cache
 
 The reasons why i have rewrite yet another buildout recipe builder are:
+    - Support for downloading stuff
     - Support on the fly patchs
     - Support hookss
     - Support for distutils

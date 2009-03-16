@@ -14,26 +14,33 @@
 
 __docformat__ = 'restructuredtext en'
 
-import datetime
-import imp
-import logging
+import distutils
 import os
-import setuptools.archive_util
-import sha
 import shutil
 import sys
 import tempfile
-import urllib2
-import urlparse
 
 import pkg_resources
+import setuptools.archive_util
+from setuptools.command import easy_install
 from zc.buildout.easy_install import _safe_arg, _easy_install_cmd, redo_pyc
 import zc.buildout.easy_install
 
 from minitage.recipe import common
 from minitage.core.fetchers.interfaces import IFetcherFactory
 from minitage.core import core
-from minitage.core.common import splitstrip, remove_path
+from minitage.core.common import splitstrip
+
+
+def merge_extras(a, b):
+    a.extras += b.extras
+    a.extras = tuple(set(a.extras))
+    return a
+
+def merge_specs(a, b):
+    a.specs += b.specs
+    a.specs = list(set(a.specs))
+    return a
 
 class Recipe(common.MinitageCommonRecipe):
     """
@@ -45,8 +52,9 @@ class Recipe(common.MinitageCommonRecipe):
         # override recipe default and download into a subdir
         # minitage-cache/eggs
         # separate archives in downloaddir/minitage
-        self.download_cache = os.path.join(
-            self.download_cache, 'eggs')
+        self.download_cache = os.path.abspath(
+            os.path.join(self.download_cache, 'eggs')
+        )
 
         # caches
         self.eggs_caches = [
@@ -60,10 +68,15 @@ class Recipe(common.MinitageCommonRecipe):
         )
 
         # real eggs
-        self.eggs = [ i\
+        self.eggs = [i\
                      for i in self.options.get('eggs', '').split('\n')\
                      if i]
 
+        self.eggs += [i\
+                     for i in self.options.get('egg', '').split('\n')\
+                     if i]
+        if not self.eggs:
+            eggs = [name]
         # findlinks for eggs
         self.find_links = splitstrip(self.options.get('find-links', ''))
 
@@ -99,7 +112,11 @@ class Recipe(common.MinitageCommonRecipe):
             versions=self.buildout.get('versions', {}),
             path=self.eggs_caches
         )
-        self._dest= self.buildout['buildout']['eggs-directory']
+        self._dest= os.path.abspath(
+            self.buildout['buildout']['eggs-directory']
+        )
+
+
 
     def update(self):
         """update."""
@@ -108,16 +125,18 @@ class Recipe(common.MinitageCommonRecipe):
     def install(self):
         """installs an egg
         """
-        self.get_workingset()
+        self.working_set()
         return []
 
 
-    def get_workingset(self):
+    def working_set(self, extras=None):
         """real recipe method but renamed for convenience as
         we do not return a path tuple but a workingset
         """
         self.logger.info('Installing python egg(s).')
-        ws = None
+        requirements, ws = None, None
+        if not extras:
+            extras = []
         # initialise working directories
         if not os.path.exists(self.tmp_directory):
             os.makedirs(self.tmp_directory)
@@ -125,9 +144,10 @@ class Recipe(common.MinitageCommonRecipe):
         # get the source distribution url for the eggs
         if 'eggs' in self.options:
             try:
-                ws = self._install_requirements(
-                    self.eggs,
+                requirements, ws = self._install_requirements(
+                    self.eggs + extras,
                     self._dest)
+                requirements, ws = self.install_static_distributions( ws, requirements=requirements)
             except Exception, e:
                 self.logger.error('Compilation error. The package is'
                                   ' left as is at %s where '
@@ -138,162 +158,286 @@ class Recipe(common.MinitageCommonRecipe):
 
         # if we choosed an url
         # downloading it, scanning its stuff and giving it to easy install
-        if self.url:
-            self.install_static_distributions(ws)
+
 
         # cleaning stuff
         if os.path.isdir(self.tmp_directory):
             shutil.rmtree(self.tmp_directory)
 
-        return ws
+        return requirements, ws
 
-    def install_static_distributions(self, ws=None):
+    def install_static_distributions(self, ws=None, urls=None, requirements=None):
         """Install distribution distribued somewhere as archives."""
         if not ws:
             ws = pkg_resources.WorkingSet([])
+        if not requirements:
+            requirements = []
         # downloading
-        # fname = self._download()
-        self._call_hook('post-download-hook')
-        fname = self._download(scm = self.scm)
+        if not urls:
+            urls = self.urls
+        for i, url in enumerate(urls):
+            fname = self._download(url=url, scm = self.scm)
+            self._call_hook('post-download-hook', fname)
+            dists = []
+            # if it is a repo, making a local copy
+            # and scan its distro
+            if os.path.isdir(fname):
+                tmp = os.path.join(self.tmp_directory, 'wc')
+                f = IFetcherFactory(self.minitage_config)
+                for fetcher in f.products:
+                    dot = getattr(f.products[fetcher](),
+                                  'metadata_directory', None)
+                    if dot:
+                        if os.path.exists(os.path.join(fname, dot)):
+                            shutil.copytree(fname, tmp)
+                            break
+                # go inside dist and scan for setup.py
+                self.options['compile-directory'] = tmp
+                self._call_hook('post-checkout-hook', fname)
+                # build the egg distribution in there.
+                cwd = os.getcwd()
+                os.chdir(tmp)
+                self._sanitizeenv(ws)
+                ret = os.system('%s setup.py sdist' % sys.executable)
+                os.chdir(cwd)
+                sdists = os.path.join(tmp, 'dist')
+                for item in os.listdir(sdists):
+                    dists.extend( [e \
+                                   for e \
+                                   in setuptools.package_index.distros_for_filename(
+                                       os.path.join(sdists,item)
+                                   )]
+                                )
+            else:
+                # scan for the distribution archive infos.
+                dists = [e \
+                         for e \
+                         in setuptools.package_index.distros_for_filename(
+                             fname)]
 
-        dists = []
-        # if it is a repo, making a local copy
-        # and scan its distro
-        if os.path.isdir(fname):
-            tmp = os.path.join(self.tmp_directory, 'wc')
-            f = IFetcherFactory(self.minitage_config)
-            for fetcher in f.products:
-                dot = getattr(f.products[fetcher](),
-                              'metadata_directory', None)
-                if dot:
-                    if os.path.exists(os.path.join(fname, dot)):
-                        shutil.copytree(fname, tmp)
-                        break
-            # go inside dist and scan for setup.py
-            self.options['compile-directory'] = tmp
-            self._call_hook('post-checkout-hook')
-            # build the egg distribution in there.
-            cwd = os.getcwd()
-            os.chdir(tmp)
-            self._sanitizeenv(ws)
-            ret = os.system('%s setup.py sdist' % sys.executable)
-            os.chdir(cwd)
-            sdists = os.path.join(tmp, 'dist')
-            for item in os.listdir(sdists):
-                dists.extend( [e \
-                               for e \
-                               in setuptools.package_index.distros_for_filename(
-                                   os.path.join(sdists,item)
-                               )]
-                            )
+            # sort duplicates
+            paths = []
+            toinstall = []
+            for dist in dists:
+                if not dist.location in [d.location\
+                                         for d in toinstall]:
+                    toinstall.append(dist)
+
+            for dist in toinstall:
+                requirement = None
+                if dist.version:
+                    requirement = pkg_resources.Requirement.parse(
+                        '%s == %s' % (dist.project_name, dist.version)
+                    )
+                else:
+                    requirement = pkg_resources.Requirement.parse(
+                        dist.project_name
+                    )
+                # force env rescanning if egg was not there at init.
+                self.inst._env.scan([self._dest])
+                sdist, savail = self.inst._satisfied(requirement)
+                if sdist:
+                    msg = 'If you want to rebuild, please do \'rm -rf %s\''
+                    self.logger.info(msg % sdist.location)
+                    ws.add(sdist)
+                else:
+                    already_installed_dependencies = {}
+                    for r in requirements:
+                        already_installed_dependencies[r.project_name] = r
+                    installed_dists = self._install_distribution(
+                        dist,
+                        self._dest,
+                        ws,
+                        already_installed_dependencies)
+                    for item in installed_dists:
+                        ws.add(item)
+                        requirements.append(dist.as_requirement())
+        return requirements, ws
+
+    def _constrain(self, requirements, dep=None):
+        constrained_requirements = {}
+        for requirement in requirements:
+            if not isinstance(requirement, pkg_resources.Requirement):
+                requirement = pkg_resources.Requirement.parse(requirement)
+            constrained_req = self.inst._constrain(requirement)
+            r = constrained_requirements.get(requirement.project_name,
+                                             constrained_req)
+            # constrain doesnt conserve extras :::
+            r = merge_extras(r, requirement)
+            # if an egg has precised some version stuff not controlled by
+            # our version.cfg, let it do it !
+            r = merge_specs(r, requirement)
+            constrained_requirements[r.project_name] = r
+        return constrained_requirements.values()
+
+    def filter_already_installed_requirents(self,
+                                            requirements,
+                                            already_installed_dependencies):
+        items = []
+        constrained_requirements = self._constrain(requirements)
+        installed_requirements = already_installed_dependencies.values()
+        if already_installed_dependencies:
+            for requirement in constrained_requirements:
+                similary_req = already_installed_dependencies.get(
+                    requirement.project_name, None)
+                found = True
+                if not similary_req:
+                    found = False
+                else:
+                    if requirement.extras and (similary_req.extras != requirement.extras):
+                        found = False
+                        requirement = merge_extras(requirement, similary_req)
+                    # if an egg has precised some version stuff not controlled by
+                    # our version.cfg, let it do it !
+                    if requirement.specs and (not similary_req.specs):
+                        found = False
+                if not found:
+                    items.append(requirement)
+                    # something new on an already installed item, mark it to be
+                    # reinstalled
+                    if similary_req:
+                        del already_installed_dependencies[requirement.project_name]
         else:
-            # scan for the distribution archive infos.
-            dists = [e \
-                     for e \
-                     in setuptools.package_index.distros_for_filename(
-                         fname)]
+            items = constrained_requirements
+        return items
 
-        # sort duplicates
-        paths = []
-        toinstall = []
-        for dist in dists:
-            if not dist.location in [d.location\
-                                     for d in toinstall]:
-                toinstall.append(dist)
+    def ensure_dependencies_there(self,
+                                  dest,
+                                  ws,
+                                  already_installed_dependencies,
+                                  first_call):
+        """Ensure all distributionss have their dependencies in the working set.
+        Alsso ensure all eggs are at rights versions pointed out by buildout.
+        @param dest the final egg cache path
+        @param ws the current working set
+        @param already_installed_dependencies Requirements
+                                              of already installed dependencies
+        @param first_call instaernally parameter to show debug messages avoiding
+                          dirts caused by recursivity
 
-        for dist in toinstall:
-            requirement = None
-            if dist.version:
-                requirement = pkg_resources.Requirement.parse(
-                    '%s == %s' % (dist.project_name, dist.version)
-                )
-            else:
-                requirement = pkg_resources.Requirement.parse( dist.project_name)
-            # force env rescanning if egg was not there at init.
-            self.inst._env.scan([self._dest])
-            sdist, savail = self.inst._satisfied(requirement)
-            if sdist:
-                msg = 'If you want to rebuild, please do \'rm -rf %s\''
-                self.logger.info(msg % sdist.location)
-                ws.add(sdist)
-            else:
-                installed_dists = self._install_distribution(
-                    dist, self._dest, ws)
-                for item in installed_dists:
-                    ws.add(item)
+        """
+        deps_reqs = []
+        for dist in ws:
+            r = self.inst._constrain(dist.as_requirement())
+            already_installed_dependencies.setdefault(r.project_name, r)
+            deps_reqs.extend(dist.requires())
+        if deps_reqs:
+            deps_reqs = self.filter_already_installed_requirents(
+                deps_reqs,
+                already_installed_dependencies)
+            _, ws = self._install_requirements(deps_reqs,
+                                            dest,
+                                            ws,
+                                            already_installed_dependencies,
+                                            first_call = False)
 
+        if first_call:
+            self.logger.debug('All egg dependencies seem to be installed!')
         return ws
 
-    def _install_requirements(self, reqs, dest, working_set=None):
+    def _install_requirements(self, reqs, dest,
+                              working_set=None,
+                              already_installed_dependencies=None,
+                              first_call=True):
         """Get urls of neccessary eggs to
         achieve a requirement.
         """
-        requirements = []
-        for spec in reqs:
-            requirements.append(
-                self.inst._constrain(
-                    pkg_resources.Requirement.parse(spec))
-            )
+        if not already_installed_dependencies:
+            already_installed_dependencies = {}
 
         if working_set is None:
             ws = pkg_resources.WorkingSet([])
         else:
             ws = working_set
 
+        requirements = self.filter_already_installed_requirents(
+            reqs,
+            already_installed_dependencies)
         # Maybe an existing dist is already the best dist that satisfies the
         # requirement
-        dists = []
-        for requirement in requirements:
-            # first try with what we have in binary form
-            # force env rescanning if egg was not there at init.
-            self.inst._env.scan([self._dest])
-            dist, avail = self.inst._satisfied(requirement)
-            if dist is None:
-                if avail is None:
-                    env = pkg_resources.Environment([self.download_cache], python=self.executable_version)
-                    sdists = []
-                    for file in os.listdir(self.download_cache):
-                        # try to scan source distribtion
-                        path = os.path.join(self.download_cache, file)
-                        if os.path.isfile(path):
-                            sdists.extend(
-                                setuptools.package_index.distros_for_url(path))
-                        for distro in sdists:
-                            env.add(distro)
-                    # last try, testing sources (very useful for offline mode
-                    # or when your egg is not indexed)
-                    avail = env.best_match(requirement, ws)
-                    if not avail:
-                        raise zc.buildout.easy_install.MissingDistribution(
-                            requirement, ws)
-                    msg = 'We found a source distribution for \'%s\' in \'%s\'.'
-                    self.logger.info(msg % (requirement, avail.location))
-                dist = self._get_dist(avail, dest, ws)
-            dists.append(dist)
+        if requirements:
+            dists = []
+            #self.logger.debug('Trying to install %s' % requirements)
+            for requirement in requirements:
+                # first try with what we have in binary form
+                # force env rescanning if egg was not there at init.
+                self.inst._env.scan([self._dest])
+                dist, avail = self.inst._satisfied(requirement)
+                # installing extras if required
+                if dist is None:
+                    if avail is None:
+                        env = pkg_resources.Environment(
+                            [self.download_cache],
+                            python=self.executable_version)
+                        sdists = []
+                        # try to scan source distribtions
+                        for file in os.listdir(self.download_cache):
+                            path = os.path.join(self.download_cache, file)
+                            if os.path.isfile(path):
+                                sdists.extend(
+                                    setuptools.package_index.distros_for_url(path))
+                            for distro in sdists:
+                                env.add(distro)
+                        # last try, testing sources (very useful for offline mode
+                        # or when your egg is not indexed)
+                        avail = env.best_match(requirement, ws)
+                        if not avail:
+                            raise zc.buildout.easy_install.MissingDistribution(
+                                requirement, ws)
+                        msg = 'We found a source distribution for \'%s\' in \'%s\'.'
+                        self.logger.info(msg % (requirement, avail.location))
+                    dist = self._get_dist(avail, ws)
+                    dist = self._install_distribution(dist,
+                                                      dest,
+                                                      ws,
+                                                      already_installed_dependencies)
+                already_installed_dependencies[requirement.project_name] = requirement
+                # honouring extra requirements
+                if requirement.extras:
+                    _, ws = self._install_requirements(
+                        dist.requires(requirement.extras),
+                        dest,
+                        ws,
+                        already_installed_dependencies,
+                        first_call=False
+                    )
+                dists.append(dist)
 
-        for dist in dists:
-            ws.add(dist)
-            # Check whether we picked a version and, if we did, report it:
-            if not (
-                dist.precedence == pkg_resources.DEVELOP_DIST
-                or
-                (len(requirement.specs) == 1
-                 and
-                 requirement.specs[0][0] == '==')
-                ):
-                self.logger.debug('Picked: %s = %s',
-                             dist.project_name, dist.version)
-                if not self.inst._allow_picked_versions:
-                    raise zc.buildout.UserError(
-                        'Picked: %s = %s' % (dist.project_name, dist.version))
+            for dist in dists:
+                ws.add(dist)
+                # Check whether we picked a version and, if we did, report it:
+                if not (
+                    dist.precedence == pkg_resources.DEVELOP_DIST
+                    or
+                    (len(requirement.specs) == 1
+                     and
+                     requirement.specs[0][0] == '==')
+                    ):
+                    self.logger.debug('Picked: %s = %s',
+                                      dist.project_name,
+                                      dist.version)
+                    if not self.inst._allow_picked_versions:
+                        raise zc.buildout.UserError(
+                            'Picked: %s = %s' % (dist.project_name,
+                                                 dist.version))
+            ws = self.ensure_dependencies_there(dest,
+                                                ws,
+                                                already_installed_dependencies,
+                                                first_call)
 
-        return ws
+        return already_installed_dependencies.values(), ws
 
-    def _install_distribution(self, dist, dest, ws=None):
+
+    def _install_distribution(self, dist, dest,
+                              ws=None, already_installed_dependencies = None):
         """Install a setuptool distribution
         into the eggs cache."""
+
+        if not already_installed_dependencies:
+            already_installed_dependencies = {}
         # where we put the builded  eggs
         tmp = os.path.join(self.tmp_directory, 'eggs')
+
         if not os.path.isdir(tmp):
             os.makedirs(tmp)
         # maybe extract time
@@ -319,6 +463,46 @@ class Recipe(common.MinitageCommonRecipe):
                 '%s-pre-setup-hook' % (dist.project_name.lower()),
                 location
             )
+        # recursivly easy installing dependencies
+        ez = easy_install.easy_install(distutils.core.Distribution())
+        if os.path.isdir(location):
+            oldcwd = os.getcwd()
+            # generating metadata for source distributions
+            try:
+                os.chdir(location)
+                ez.run_setup('', '', ['egg_info', '-e', '.'])
+            except:
+                os.chdir(oldcwd)
+
+        # getting dependencies
+        requires = []
+        reqs_lists = [a.requires()
+                      for a in pkg_resources.find_distributions(location)]
+
+        # installing them
+        for reqs_list in reqs_lists:
+            requires.extend(self._constrain(reqs_list))
+
+        # delete our require getter hackery mecanism because
+        # it can pertubate the setuptools namespace handling
+        if os.path.isdir(location):
+            os.chdir(location)
+            for f in os.listdir('.'):
+                if f.endswith('.egg-info') and os.path.isdir(f):
+                    shutil.rmtree(f)
+            os.chdir(oldcwd)
+
+        # mark the current distribution as installed to avoid circular calls
+        if requires and not self.options.get('ez-nodependencies'):
+            r = dist.as_requirement()
+            if not r.project_name in already_installed_dependencies:
+                already_installed_dependencies[r.project_name] = r
+            _, ws = self._install_requirements(requires,
+                                       dest,
+                                       ws,
+                                       already_installed_dependencies,
+                                       first_call = False)
+
         # compile time
         self._run_easy_install(tmp, ['%s' % location], ws=ws)
         # scan to seach resulted eggs.
@@ -376,13 +560,18 @@ class Recipe(common.MinitageCommonRecipe):
                 [newloc],
                 python=self.executable_version
             )[d.project_name]
-            self._call_hook(
-                '%s-post-setup-hook' % (d.project_name.lower()),
-                newloc
-            )
-            result.append(d)
 
-        return result
+            result.append(d)
+        self._call_hook(
+            '%s-post-setup-hook' % (d.project_name.lower()),
+            newloc
+        )
+        if not dest in self.eggs_caches:
+            self.eggs_caches += [dest]
+        self._env.scan(self.eggs_caches)
+        dist = self._env.best_match(dist.as_requirement(), ws)
+        self.logger.info("Got %s.", dist)
+        return dist
 
     def _run_easy_install(self, prefix, specs, caches=None, ws=None):
         """Install a python egg using easy_install."""
@@ -391,8 +580,9 @@ class Recipe(common.MinitageCommonRecipe):
 
         ez_args = '-mU'
         # compatiblity thing: we test ez-dependencies to be there
-        if self.options.get('ez-nodependencies'):
-            ez_args += 'N'
+        # new version of  the recipe implies dependencies installed prior to the
+        # final ez install call via the require dance
+        ez_args += 'N'
 
         ez_args += 'xd'
 
@@ -446,11 +636,8 @@ class Recipe(common.MinitageCommonRecipe):
 
         os.chdir(cwd)
 
-    def _get_dist(self, avail, dest, ws):
+    def _get_dist(self, avail, ws):
         """Get a distribution."""
-        search_pathes = self.eggs_caches
-        if not dest in search_pathes:
-            search_pathes = self.eggs_caches + [dest]
 
         requirement = pkg_resources.Requirement.parse(
             '%s == %s' % (avail.project_name, avail.version)
@@ -465,7 +652,6 @@ class Recipe(common.MinitageCommonRecipe):
         # We may overwrite distributions, so clear importer
         # cache.
         sys.path_importer_cache.clear()
-
         # if the dist begin with an url, we try to dnowload it.
         # if available location is a path, add it too to find links
         link = avail.location
@@ -490,83 +676,11 @@ class Recipe(common.MinitageCommonRecipe):
                 shutil.copytree(source, filename)
             else:
                 shutil.copy(source, filename)
-
         dist = avail.clone(location=filename)
 
         if dist is None:
             raise zc.buildout.UserError(
                 "Couln't download distribution %s." % avail)
-
-        #if dist.precedence == pkg_resources.EGG_DIST:
-        #    # It's already an egg, just fetch it into the dest
-
-        #    newloc = os.path.join(
-        #        dest, os.path.basename(dist.location))
-
-        #    if os.path.isdir(dist.location):
-        #        # we got a directory. It must have been
-        #        # obtained locally.  Just copy it.
-        #        shutil.copytree(dist.location, newloc)
-        #    else:
-
-        #        if self.zip_safe:
-        #            should_unzip = True
-        #        else:
-        #            metadata = pkg_resources.EggMetadata(
-        #                zipimport.zipimporter(dist.location)
-        #                )
-        #            should_unzip = (
-        #                metadata.has_metadata('not-zip-safe')
-        #                or
-        #                not metadata.has_metadata('zip-safe')
-        #                )
-
-        #        if should_unzip:
-        #            backup = None
-        #            if os.path.exists(newloc):
-        #                backup = '.'.join([newloc, 'old'])
-        #                if os.path.exists(backup):
-        #                    message = 'There is already a backuped egg in %s'
-        #                    self.logger.error(message % backup)
-        #                    raise core.MinimergeError('Recipe failed, please '
-        #                                              'remove the old backup '
-        #                                              ' or deal with it.')
-        #                self.logger.info('Warning, renaming previously existing'
-        #                                 ' %s egg in cache' % newloc)
-        #                os.rename(newloc, backup)
-        #            try:
-        #                setuptools.archive_util.unpack_archive(
-        #                    dist.location, newloc)
-        #                # if is it not in error, remove backup
-        #                if backup:
-        #                    remove_path(backup)
-        #            except:
-        #                if backup:
-        #                    self.logger.info('Removing incomplete %s' % newloc)
-        #                    if os.path.exists(newloc):
-        #                        remove_path(newloc)
-        #                    self.logger.info('Restoring %s' % newloc)
-        #                    os.rename(backup, newloc)
-        #                    raise core.MinimergeError(
-        #                        '%s egg compilation failed' % dist.project_name)
-        #        else:
-        #            shutil.copyfile(dist.location, newloc)
-
-        #    # Getting the dist from the environment causes the
-        #    # distribution meta data to be read.  Cloning isn't
-        #    # good enough.
-        #    dists = pkg_resources.Environment(
-        #        [newloc],
-        #        python=self.executable_version,
-        #        )[dist.project_name]
-        #else:
-        # It's some other kind of dist.  We'll let setup.py
-        # make the stuff
-        dist = self._install_distribution(dist, dest, ws)
-
-        self._env.scan(search_pathes)
-        dist = self._env.best_match(requirement, ws)
-        self.logger.info("Got %s.", dist)
 
         return dist
 

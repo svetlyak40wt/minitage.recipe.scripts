@@ -48,7 +48,14 @@ CMMI = """
 parts=part
 offline=true
 
+[egg]
+eggs = elementtree
+
+[env]
+foo = bartest
+
 [part]
+environment = env
 eggs = elementtree
 minitage-eggs = legg1
 minitage-dependencies = ldep2
@@ -61,7 +68,8 @@ pythonpath = a b
 name=part
 includes = a b c
            d e f
-libraries = a/lib b/lib c/lib
+libraries = c
+library-dirs = a/lib b/lib c/lib
             d/lib e/lib f/lib
 rpath = a b c
         d e f
@@ -173,7 +181,13 @@ class RecipeTest(unittest.TestCase):
         shutil.rmtree(tmp)
         recipe = None
 
-    def taestOptions(self):
+    def tastEnc(self):
+        """testCommon."""
+        bd = Buildout(fp, [])
+        recipe = MinitageCommonRecipe(bd, '666', bd['part'])
+        self.assertEquals(os.environ['foo', 'bartest'])
+
+    def tastOptions(self):
         """testCommon."""
         bd = Buildout(fp, [])
         recipe = MinitageCommonRecipe(bd, '666', bd['part'])
@@ -315,15 +329,17 @@ class RecipeTest(unittest.TestCase):
             'ldep2',
             'parts',
             'part') in recipe.minitage_dependencies)
-        self.assertEquals(os.environ.get('LDFLAGS'),
-                          '%s%s' %(
-                              ''.join(['-L%s/lib -Wl,-rpath -Wl,%s/lib ' % (s,s) \
-                                       for s in ['a','b','c','d','e','f'] \
-                                       + recipe.minitage_dependencies +
-                                       recipe.minitage_eggs + [recipe.prefix]]),
-                              ' -mmacosx-version-min=10.5.0 ',
-                          )
-                         )
+        a = '%s%s' %(
+                ''.join(['-L%s/lib -Wl,-rpath -Wl,%s/lib ' % (s,s) \
+                         for s in ['a','b','c','d','e','f'] \
+                         + recipe.minitage_dependencies +
+                         recipe.minitage_eggs + [recipe.prefix]]),
+                ' -mmacosx-version-min=10.5.0   -lc',
+            )
+        b = os.environ.get('LDFLAGS')
+        #print a
+        #print b
+        self.assertEquals(a, b)
 
     def testUnpack(self):
         """testUnpack."""
@@ -632,7 +648,7 @@ chmod +x configure
             os.makedirs(dir)
         bd = Buildout(fp, [])
         bd.offline = False
-        recipe = EGGSRecipe(bd, '666', bd['part'])
+        recipe = EGGSRecipe(bd, '666', bd['egg'])
         recipe.buildout['buildout']['eggs-directory'] = cache
         recipe.buildout['buildout']['develop-eggs-directory'] = dcache
         recipe.tmp_directory = a
@@ -640,10 +656,10 @@ chmod +x configure
         recipe.offline = False
         recipe.md5= None
         recipe.eggs = ['elementtree',]
-        ws = recipe.get_workingset()
+        _, ws = recipe.working_set()
         self.assertTrue(ws.find(pkg_resources.Requirement.parse('elementtree')))
         recipe.eggs = ['elementtree', 'plone.app.form']
-        ws = recipe.get_workingset()
+        _, ws = recipe.working_set()
         self.assertTrue(ws.find(pkg_resources.Requirement.parse('elementtree')))
         self.assertTrue(ws.find(pkg_resources.Requirement.parse('plone.app.form')))
 
@@ -671,7 +687,7 @@ chmod +x configure
         d = e['minitage.recipe'][0]
         r = pkg_resources.Requirement.parse('minitage.recipe')
         ws = pkg_resources.WorkingSet()
-        dist = recipe._get_dist(d, cache, ws)
+        dist = recipe._get_dist(d, ws)
         self.assertEquals(dist.project_name, 'minitage.recipe')
 
     def testGetDist(self):
@@ -687,7 +703,6 @@ chmod +x configure
                   cd aaaaaaaaaa
                   %s setup.py sdist
                   cp dist/foo-1.0.tar.gz ..
-                  cp dist/foo-1.0.tar.gz /home/kiorky/tmp/foo-1.0.tar.gz
                   """ % (
                       p, sys.executable)
                  )
@@ -705,10 +720,10 @@ chmod +x configure
         req = pkg_resources.Requirement.parse('foo')
         pi = setuptools.package_index.PackageIndex()
         pi.add_find_links([tmp])
-        d = pi.obtain(req)
+        sd = pi.obtain(req)
         ws = pkg_resources.WorkingSet()
-        dist = recipe._get_dist(d, cache, ws)
-        self.assertTrue(cache in dist.location)
+        dist = recipe._get_dist(sd, ws)
+        self.assertTrue(recipe.tmp_directory in dist.location)
         self.assertEquals(dist.project_name, 'foo')
 
     def testPatchDist(self):

@@ -2,6 +2,17 @@
 CHANGELOG
 =======================
 
+0.7
+======
+
+    - egg and scripts recipes were rewritten a lot to adapt their api to
+      zc.recipe.egg
+    - Common to all recipes: all arguements are now identicak to zc.recipe.cmmi
+      or zc.recipe.egg
+    - Dependencies resolver has been improved a lot
+    - For static distribution, you can know speicify multiple urls with 'urls'
+
+
 0.6
 ======
 
