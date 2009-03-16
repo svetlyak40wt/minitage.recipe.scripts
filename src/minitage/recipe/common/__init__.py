@@ -606,7 +606,7 @@ class MinitageCommonRecipe(object):
                      '-L/usr/lib -L/lib -Wl,-rpath -Wl,/usr/lib -Wl,-rpath -Wl,/lib']
                 )
         if self.libraries_names:
-            os.environ['LDFLAGS'] = ' '.join([os.environ['LDFLAGS'], self.libraries_names]).strip()
+            os.environ['LDFLAGS'] = ' '.join([os.environ.get('LDFLAGS', ''), self.libraries_names]).strip()
 
         if self.minimerge:
             os.environ['CFLAGS']  = ' '.join([
