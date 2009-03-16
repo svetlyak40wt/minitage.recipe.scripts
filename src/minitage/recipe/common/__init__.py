@@ -330,7 +330,7 @@ class MinitageCommonRecipe(object):
                 }
             )
         except:
-            message = 'Problem when intializing minimerge '\
+            message = 'Problem when intiializing minimerge '\
                     'instance with %s config.'
             self.logger.debug(message % self.minitage_config)
 

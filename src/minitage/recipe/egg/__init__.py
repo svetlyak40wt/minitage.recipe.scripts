@@ -94,8 +94,10 @@ class Recipe(common.MinitageCommonRecipe):
         )
 
         # monkey patch zc.buildout loggging
+        self.logger.setLevel(
+            zc.buildout.easy_install.logger.getEffectiveLevel()
+        )
         zc.buildout.easy_install.logger = self.logger
-        self.logger.setLevel(5)
 
         # get an instance of the zc.buildout egg installer
         # to search in the cache if we dont have dist yet
@@ -110,13 +112,14 @@ class Recipe(common.MinitageCommonRecipe):
             executable=self.executable,
             always_unzip=self.zip_safe,
             versions=self.buildout.get('versions', {}),
-            path=self.eggs_caches
+            path=self.eggs_caches,
+            allow_hosts=self.options.get('allow-hosts',
+                                         self.buildout.get('allow-hosts', {})
+                                         ),
         )
         self._dest= os.path.abspath(
             self.buildout['buildout']['eggs-directory']
         )
-
-
 
     def update(self):
         """update."""
@@ -127,7 +130,6 @@ class Recipe(common.MinitageCommonRecipe):
         """
         self.working_set()
         return []
-
 
     def working_set(self, extras=None):
         """real recipe method but renamed for convenience as
@@ -345,6 +347,9 @@ class Recipe(common.MinitageCommonRecipe):
         if not already_installed_dependencies:
             already_installed_dependencies = {}
 
+        # initialise working directories
+        if not os.path.exists(self.tmp_directory):
+            os.makedirs(self.tmp_directory) 
         if working_set is None:
             ws = pkg_resources.WorkingSet([])
         else:
@@ -413,7 +418,7 @@ class Recipe(common.MinitageCommonRecipe):
                      and
                      requirement.specs[0][0] == '==')
                     ):
-                    self.logger.debug('Picked: %s = %s',
+                    self.logger.info('Picked: %s = %s',
                                       dist.project_name,
                                       dist.version)
                     if not self.inst._allow_picked_versions:
@@ -570,7 +575,7 @@ class Recipe(common.MinitageCommonRecipe):
             self.eggs_caches += [dest]
         self._env.scan(self.eggs_caches)
         dist = self._env.best_match(dist.as_requirement(), ws)
-        self.logger.info("Got %s.", dist)
+        self.logger.debug("Got %s.", dist)
         return dist
 
     def _run_easy_install(self, prefix, specs, caches=None, ws=None):
@@ -614,7 +619,7 @@ class Recipe(common.MinitageCommonRecipe):
             if os.path.isdir('setuptools'):
                 os.chdir('/')
 
-            self.logger.info('Running easy_install: \n%s "%s"\n',
+            self.logger.debug('Running easy_install: \n%s "%s"\n',
                              self.executable,
                              '" "'.join(largs))
 

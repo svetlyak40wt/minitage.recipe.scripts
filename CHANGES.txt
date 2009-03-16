@@ -2,6 +2,12 @@
 CHANGELOG
 =======================
 
+0.10
+===========
+    
+    - Change some logging options
+    - follow allow host option from buildout for eggs installation
+
 0.9
 ===========
     
