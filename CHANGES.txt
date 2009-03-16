@@ -2,8 +2,8 @@
 CHANGELOG
 =======================
 
-0.7
-======
+0.7 -> 0.8
+===========
 
     - egg and scripts recipes were rewritten a lot to adapt their api to
       zc.recipe.egg
