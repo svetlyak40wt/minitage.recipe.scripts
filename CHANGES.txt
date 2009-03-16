@@ -2,6 +2,11 @@
 CHANGELOG
 =======================
 
+0.9
+===========
+    
+    - Do not rely anymore on zc.buildout ez for script generation
+
 0.7 -> 0.8
 ===========
 

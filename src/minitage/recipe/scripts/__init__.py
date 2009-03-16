@@ -55,9 +55,17 @@ class Recipe(egg.Recipe):
         """
         self.logger.info('Installing console scripts.')
         # install console scripts
-        installed_scripts = []
-        reqs = []
-        scripts = self.options.get('scripts', None)
+        installed_scripts, install_paths = {},[]
+        bin = self.buildout['buildout']['bin-directory']
+        sitepackages = re.sub('bin.*',
+                              'lib/python%s/site-packages' % self.executable_version,
+                               self.executable)
+        scan_paths = [self.buildout['buildout']['develop-eggs-directory'],
+                      self.buildout['buildout']['eggs-directory'],
+                      sitepackages] + self.extra_paths
+        entry_points = []
+        # parse script key
+        scripts = self.options.get('scripts', {})
         if scripts or scripts is None:
             if scripts is not None:
                 scripts = scripts.split()
@@ -66,68 +74,57 @@ class Recipe(egg.Recipe):
                     for s in scripts
                     ])
 
-            for s in self.options.get('entry-points', '').split():
+        # install needed stuff and get according working set
+        reqs, ws = self.working_set()
+        env = pkg_resources.Environment(scan_paths, python = self.executable_version)
+        required_dists = ws.resolve(reqs, env)
+        for dist in required_dists:
+            if not dist in ws:
+                ws.add(dist)
+        pypath = [p for p in ws.entries+self.extra_paths if os.path.isdir(p)]
+        template_vars = {'python': self.executable,
+                         'path': '\',\n\''.join(pypath),
+                         'arguments': self.options.get('arguments', ''),
+                         'initialization': self.options.get('initialization', ''),}
+
+        # parse entry points key
+        for s in self.options.get('entry-points', '').split():
+            if s.strip():
                 parsed = self.parse_entry_point(s)
                 if not parsed:
                     logging.getLogger(self.name).error(
                         "Cannot parse the entry point %s.", s)
                     raise zc.buildout.UserError("Invalid entry point")
-                reqs.append(parsed.groups())
+                entry_points.append(parsed.groups()) 
 
-        reqs.extend(self.eggs)
-
-        # install needed stuff and get according working set
-        _, ws = self.working_set()
-        reqs_keys = []
-        for itereq in ws.entry_keys.values():
-            for req in itereq:
-                reqs_keys.append(req)
-        lreqs = pkg_resources.parse_requirements('\n'.join(reqs_keys))
-
-        sitepackages = re.sub('bin.*',
-                               'lib/python%s/site-packages' % self.executable_version,
-                               self.executable)
-        scan_paths = [self.buildout['buildout']['develop-eggs-directory'],
-                      self.buildout['buildout']['eggs-directory'],
-                      sitepackages] + self.extra_paths
-        env = pkg_resources.Environment(scan_paths, python = self.executable_version)
-        required_dists = ws.resolve(lreqs, env)
-        for dist in required_dists:
-            if not dist in ws:
-                ws.add(dist)
-
-        interpreter = self.options.get('interpreter', '').strip()
-        pypath = [p
-                  for p in ws.entries+self.extra_paths
-                  if os.path.isdir(p)]
+        # scan eggs for entry point keys
+        for req in reqs:
+            dist = ws.find(req)
+            for name in pkg_resources.get_entry_map(dist, 'console_scripts'):
+                entry_point = dist.get_entry_info('console_scripts', name)
+                entry_points.append(
+                    (name, entry_point.module_name,
+                     '.'.join(entry_point.attrs))
+                    )
 
         # generate interpreter
+        interpreter = self.options.get('interpreter', '').strip()
         if interpreter:
-            inst_script = os.path.join(
-                self.buildout['buildout']['bin-directory'],
-                interpreter
-            )
-            script = py_script_template % {
-                'python': self.executable,
-                'path': '\',\n\''.join(pypath),
-                'initialization': self.options.get('initialization', ''),
-            }
-            open(inst_script, 'w').writelines(script)
-            installed_scripts.append(inst_script)
+            inst_script = os.path.join(bin, interpreter)
+            installed_scripts[interpreter] = inst_script, py_script_template % template_vars
 
-        # generate console renty pointts
-        installed_scripts.extend(
-            zc.buildout.easy_install.scripts(
-                reqs,
-                ws,
-                self.executable,
-                self.options['bin-directory'],
-                scripts=scripts,
-                extra_paths=self.extra_paths,
-                initialization=self.options.get('initialization', ''),
-                arguments=self.options.get('arguments', ''),
-            )
-        )
+        # generate console entry pointts
+        for name, module_name, attrs in entry_points:
+            sname = name
+            if scripts:
+                sname = scripts.get(name)
+                if sname is None:
+                    continue
+            entry_point_vars = template_vars.copy()
+            entry_point_vars.update(
+                {'module_name':  module_name,
+                 'attrs': attrs,})
+            installed_scripts[sname] = os.path.join(bin, sname), entry_point_template % entry_point_vars
 
         # generate scripts
         option_scripts = self.options.get('scripts', None)
@@ -137,16 +134,18 @@ class Recipe(egg.Recipe):
             if dist.has_metadata('scripts'):
                 provider = dist._provider
                 items = [s
-                         for s  in provider.metadata_listdir('scripts')
+                         for s in provider.metadata_listdir('scripts')
                          if not s in already_installed]
                 for script in items:
+                    sname = name
+                    if scripts:
+                        sname = scripts.get(name)
+                        if sname is None:
+                            continue
                     if not option_scripts or (script in option_scripts):
                         script_filename = provider._fn(
                             provider.egg_info, 'scripts/%s' % script)
-                        inst_script = os.path.join(
-                            self.buildout['buildout']['bin-directory'],
-                            os.path.split(script_filename)[1]
-                        )
+                        inst_script = os.path.join(bin,os.path.split(script_filename)[1])
                         shutil.copy(script_filename, inst_script)
                         # insert working set pypath inside and adapt shebang to
                         # self.executable
@@ -154,25 +153,23 @@ class Recipe(egg.Recipe):
                         if len(script_content)>1:
                             if script_content[0].startswith('#!'):
                                 del script_content[0]
-                            script = script_template % {
-                                'python': self.executable,
-                                'path': '\',\n\''.join(pypath),
-                                'code': ''.join(script_content),
-                                'initialization': self.options.get(
-                                    'initialization', ''),
-                            }
+                            script_vars = template_vars.copy()
+                            script_vars.update({'code': ''.join(script_content)})
+                            code = script_template % script_vars
+                            sname = scripts.get(script, script)
+                            installed_scripts[sname] = inst_script, code
 
-                        open(inst_script, 'w').writelines(script)
-                        installed_scripts.append(inst_script)
-
-        for script in list(set(installed_scripts)):
-            os.chmod(script,
+        for script in installed_scripts:
+            path, content = installed_scripts[script]
+            install_paths.append(path)
+            open(path, 'w').writelines(content)
+            os.chmod(path,
                      stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR
                      | stat.S_IRGRP | stat.S_IWGRP | stat.S_IXGRP
                      | stat.S_IROTH | stat.S_IXOTH
                     )
             self.logger.debug('Generated script \'%s\'.' % script)
-        return installed_scripts
+        return installed_scripts.keys()
 
 script_template = """\
 #!%(python)s
@@ -217,5 +214,24 @@ if _interactive:
     import code
     code.interact(banner="", local=globals())
 """
+
+entry_point_template = """\
+#!%(python)s
+#!!! #GENERATED VIA MINITAGE.recipe !!!
+
+import sys
+sys.path[0:0] = [ '%(path)s', ]
+
+%(initialization)s
+import %(module_name)s
+
+if __name__ == '__main__':
+    %(module_name)s.%(attrs)s(%(arguments)s)
+"""
+
+
+
+def stub():
+    pass
 
 # vim:set et sts=4 ts=4 tw=80:
