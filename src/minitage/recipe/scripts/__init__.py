@@ -168,7 +168,7 @@ class Recipe(egg.Recipe):
                      | stat.S_IRGRP | stat.S_IWGRP | stat.S_IXGRP
                      | stat.S_IROTH | stat.S_IXOTH
                     )
-            self.logger.debug('Generated script \'%s\'.' % script)
+            self.logger.info('Generated script \'%s\'.' % script)
         return installed_scripts.keys()
 
 script_template = """\
