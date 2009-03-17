@@ -40,7 +40,7 @@ class Recipe(egg.Recipe):
             if p.strip()
             ]
         if self.extra_paths:
-            self.extra_paths = [p for p in self.extra_paths if os.path.isdir(p)]
+            self.extra_paths = [p for p in self.extra_paths if os.path.exists(p)]
             options['extra-paths'] = '\n'.join(self.extra_paths)
 
     parse_entry_point = re.compile(
