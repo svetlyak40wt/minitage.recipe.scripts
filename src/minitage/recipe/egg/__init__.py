@@ -112,6 +112,7 @@ class Recipe(common.MinitageCommonRecipe):
             always_unzip=self.zip_safe,
             versions=self.buildout.get('versions', {}),
             path=self.eggs_caches,
+            newest = self.buildout.newest,
             allow_hosts=self.options.get('allow-hosts',
                                          self.buildout.get('allow-hosts', {})
                                          ),

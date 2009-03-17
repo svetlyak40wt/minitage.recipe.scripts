@@ -159,8 +159,10 @@ class Recipe(egg.Recipe):
                             sname = scripts.get(script, script)
                             installed_scripts[sname] = inst_script, code
 
+        ls = []
         for script in installed_scripts:
             path, content = installed_scripts[script]
+            ls.append(path)
             install_paths.append(path)
             open(path, 'w').writelines(content)
             os.chmod(path,
@@ -168,7 +170,13 @@ class Recipe(egg.Recipe):
                      | stat.S_IRGRP | stat.S_IWGRP | stat.S_IXGRP
                      | stat.S_IROTH | stat.S_IXOTH
                     )
-            self.logger.info('Generated script \'%s\'.' % script)
+        l = installed_scripts.keys()
+        l.sort()
+        self.logger.info(
+            'Generated scripts: \'%s\'.' % (
+                "', '".join(l)
+            )
+        )
         return installed_scripts.keys()
 
 script_template = """\

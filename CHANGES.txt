@@ -3,6 +3,11 @@ CHANGELOG
 =======================
 
 
+0.14 -> 0.15
+=============
+    - logging output improved
+    - newest mode handling
+
 0.13
 =====
 - fix static dist install
