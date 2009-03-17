@@ -141,21 +141,21 @@ class Recipe(common.MinitageCommonRecipe):
         # initialise working directories
         if not os.path.exists(self.tmp_directory):
             os.makedirs(self.tmp_directory)
-
         # get the source distribution url for the eggs
-        if 'eggs' in self.options:
-            try:
+        try:
+            if self.eggs or extras:
                 requirements, ws = self._install_requirements(
                     self.eggs + extras,
                     self._dest)
-                requirements, ws = self.install_static_distributions( ws, requirements=requirements)
-            except Exception, e:
-                self.logger.error('Compilation error. The package is'
-                                  ' left as is at %s where '
-                                  'you can inspect what went wrong' % (
-                                      self.tmp_directory))
-                self.logger.error('Message was:\n\t%s' % e)
-                raise core.MinimergeError('Recipe failed, cant install.')
+            requirements, ws = self.install_static_distributions( ws, requirements=requirements)
+        except Exception, e:
+            raise
+            self.logger.error('Compilation error. The package is'
+                              ' left as is at %s where '
+                              'you can inspect what went wrong' % (
+                                  self.tmp_directory))
+            self.logger.error('Message was:\n\t%s' % e)
+            raise core.MinimergeError('Recipe failed, cant install.')
 
         # if we choosed an url
         # downloading it, scanning its stuff and giving it to easy install
@@ -178,11 +178,11 @@ class Recipe(common.MinitageCommonRecipe):
             urls = self.urls
         for i, url in enumerate(urls):
             fname = self._download(url=url, scm = self.scm)
-            self._call_hook('post-download-hook', fname)
             dists = []
             # if it is a repo, making a local copy
             # and scan its distro
             if os.path.isdir(fname):
+                self._call_hook('post-download-hook', fname)
                 tmp = os.path.join(self.tmp_directory, 'wc')
                 f = IFetcherFactory(self.minitage_config)
                 for fetcher in f.products:
@@ -245,14 +245,13 @@ class Recipe(common.MinitageCommonRecipe):
                     already_installed_dependencies = {}
                     for r in requirements:
                         already_installed_dependencies[r.project_name] = r
-                    installed_dists = self._install_distribution(
+                    installed_dist = self._install_distribution(
                         dist,
                         self._dest,
                         ws,
                         already_installed_dependencies)
-                    for item in installed_dists:
-                        ws.add(item)
-                        requirements.append(dist.as_requirement())
+                    ws.add(installed_dist)
+                    requirements.append(dist.as_requirement())
         return requirements, ws
 
     def _constrain(self, requirements, dep=None):
@@ -573,9 +572,13 @@ class Recipe(common.MinitageCommonRecipe):
         if not dest in self.eggs_caches:
             self.eggs_caches += [dest]
         self._env.scan(self.eggs_caches)
-        dist = self._env.best_match(dist.as_requirement(), ws)
-        self.logger.debug("Got %s.", dist)
-        return dist
+        rdist = self._env.best_match(dist.as_requirement(), ws)
+        if not rdist:
+            if result:
+                rdist = self._env.best_match(result[0].as_requirement(), 
+                                             ws)
+        self.logger.debug("Got %s.", rdist)
+        return rdist
 
     def _run_easy_install(self, prefix, specs, caches=None, ws=None):
         """Install a python egg using easy_install."""
