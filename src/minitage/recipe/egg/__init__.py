@@ -23,7 +23,6 @@ import tempfile
 import pkg_resources
 import setuptools.archive_util
 from setuptools.command import easy_install
-from zc.buildout.easy_install import _safe_arg, _easy_install_cmd, redo_pyc
 import zc.buildout.easy_install
 
 from minitage.recipe import common
@@ -559,7 +558,7 @@ class Recipe(common.MinitageCommonRecipe):
 
             os.rename(d.location, newloc)
             # regenerate pyc's in this directory
-            redo_pyc(os.path.abspath(newloc))
+            zc.buildout.easy_install.redo_pyc(os.path.abspath(newloc))
 
             [d] = pkg_resources.Environment(
                 [newloc],
@@ -591,7 +590,8 @@ class Recipe(common.MinitageCommonRecipe):
 
         ez_args += 'xd'
 
-        args = ('-c', _easy_install_cmd, ez_args, _safe_arg(prefix))
+        args = ('-c', zc.buildout.easy_install._easy_install_cmd, ez_args,
+                zc.buildout.easy_install. _safe_arg(prefix))
         if self.zip_safe:
             args += ('-Z', )
         else:
@@ -630,7 +630,7 @@ class Recipe(common.MinitageCommonRecipe):
                 exit_code = os.spawnle(
                     os.P_WAIT,
                     self.executable,
-                    _safe_arg (self.executable),
+                    zc.buildout.easy_install._safe_arg (self.executable),
                     *largs)
                 if exit_code > 0:
                     raise core.MinimergeError( "easy install failed")
