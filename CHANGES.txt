@@ -2,6 +2,10 @@
 CHANGELOG
 =======================
 
+0.16
+=======
+
+    - Fix index and find links options
 
 0.14 -> 0.15
 =============

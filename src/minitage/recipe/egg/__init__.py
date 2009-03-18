@@ -78,9 +78,12 @@ class Recipe(common.MinitageCommonRecipe):
             eggs = [name]
         # findlinks for eggs
         self.find_links = splitstrip(self.options.get('find-links', ''))
+        self.find_links += splitstrip(self.buildout['buildout'].get('find-links', ''))
 
         #index replacement
-        self.index = self.options.get('index', None)
+        self.index = self.options.get('index', 
+                                     self.buildout['buildout'].get('index', None)
+                                     )
 
         # zip flag for eggs
         self.zip_safe = False
