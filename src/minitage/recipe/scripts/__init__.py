@@ -81,7 +81,7 @@ class Recipe(egg.Recipe):
         for dist in required_dists:
             if not dist in ws:
                 ws.add(dist)
-        pypath = [p for p in ws.entries+self.extra_paths if os.path.isdir(p)]
+        pypath = [p for p in ws.entries+self.extra_paths if os.path.exists(p)]
         template_vars = {'python': self.executable,
                          'path': '\',\n\''.join(pypath),
                          'arguments': self.options.get('arguments', ''),
