@@ -563,11 +563,8 @@ class Recipe(common.MinitageCommonRecipe):
             # regenerate pyc's in this directory
             zc.buildout.easy_install.redo_pyc(os.path.abspath(newloc))
 
-            [d] = pkg_resources.Environment(
-                [newloc],
-                python=self.executable_version
-            )[d.project_name]
-
+            d = pkg_resources.Distribution.from_filename(newloc)
+            print d
             result.append(d)
         self._call_hook(
             '%s-post-setup-hook' % (d.project_name.lower()),
@@ -579,8 +576,8 @@ class Recipe(common.MinitageCommonRecipe):
         rdist = self._env.best_match(dist.as_requirement(), ws)
         if not rdist:
             if result:
-                rdist = self._env.best_match(result[0].as_requirement(), 
-                                             ws)
+                rdist = result[0]
+
         self.logger.debug("Got %s.", rdist)
         return rdist
 
