@@ -147,11 +147,12 @@ class Recipe(common.MinitageCommonRecipe):
             os.makedirs(self.tmp_directory)
         # get the source distribution url for the eggs
         try:
+            requirements, ws = self.install_static_distributions(ws, requirements=requirements)
             if self.eggs or extras:
-                requirements, ws = self._install_requirements(
+                drequirements, ws = self._install_requirements(
                     self.eggs + extras,
                     self._dest)
-            requirements, ws = self.install_static_distributions( ws, requirements=requirements)
+                requirements.extend(drequirements)
         except Exception, e:
             raise
             self.logger.error('Compilation error. The package is'
