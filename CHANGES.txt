@@ -1,6 +1,13 @@
 =======================
 CHANGELOG
 =======================
+
+0.20
+======
+
+    - Fix bug in distribution reloading
+    - Better handling of pkg_resources's working set
+
 0.19
 ========
 

@@ -14,6 +14,7 @@
 
 __docformat__ = 'restructuredtext en'
 
+import copy
 import distutils
 import os
 import shutil
@@ -81,7 +82,7 @@ class Recipe(common.MinitageCommonRecipe):
         self.find_links += splitstrip(self.buildout['buildout'].get('find-links', ''))
 
         #index replacement
-        self.index = self.options.get('index', 
+        self.index = self.options.get('index',
                                      self.buildout['buildout'].get('index', None)
                                      )
 
@@ -132,30 +133,40 @@ class Recipe(common.MinitageCommonRecipe):
         """installs an egg
         """
         reqs, working_set = self.working_set()
-        # compatibility with zc.buildout.buildout.Builout.install_and_load_method and so on.
-        for entry in working_set:
-            if not entry in pkg_resources.working_set:
-                pkg_resources.working_set.add(entry)  
         return []
 
-    def working_set(self, extras=None):
+    def working_set(self, extras=None, working_set=None, dest=None):
         """real recipe method but renamed for convenience as
         we do not return a path tuple but a workingset
         """
         self.logger.info('Installing python egg(s).')
-        requirements, ws = None, None
+        requirements = None
         if not extras:
             extras = []
+
+        if not dest:
+            dest = self._dest
+
+        for i, r in enumerate(copy.deepcopy(extras)):
+            if not isinstance(r, pkg_resources.Requirement):
+                extras[i] = pkg_resources.Requirement.parse(r)
+
         # initialise working directories
         if not os.path.exists(self.tmp_directory):
             os.makedirs(self.tmp_directory)
         # get the source distribution url for the eggs
         try:
-            requirements, ws = self.install_static_distributions(ws, requirements=requirements)
+            # if we have urls
+            # downloading each, scanning its stuff and giving it to easy install
+            requirements, working_set = self.install_static_distributions(working_set,
+                                                                          requirements=requirements,
+                                                                          dest=dest)
+            # installing classical requirements
             if self.eggs or extras:
-                drequirements, ws = self._install_requirements(
+                drequirements, working_set = self._install_requirements(
                     self.eggs + extras,
-                    self._dest)
+                    dest,
+                    working_set=working_set)
                 requirements.extend(drequirements)
         except Exception, e:
             raise
@@ -166,22 +177,29 @@ class Recipe(common.MinitageCommonRecipe):
             self.logger.error('Message was:\n\t%s' % e)
             raise core.MinimergeError('Recipe failed, cant install.')
 
-        # if we choosed an url
-        # downloading it, scanning its stuff and giving it to easy install
-
-
         # cleaning stuff
         if os.path.isdir(self.tmp_directory):
             shutil.rmtree(self.tmp_directory)
+        if not dest in self.eggs_caches:
+            self.eggs_caches.append(dest)
 
-        return requirements, ws
+        env = pkg_resources.Environment(self.eggs_caches,
+                                        python=self.executable_version)
 
-    def install_static_distributions(self, ws=None, urls=None, requirements=None):
+        return requirements, working_set
+
+    def install_static_distributions(self,
+                                     working_set=None,
+                                     urls=None,
+                                     requirements=None,
+                                     dest=None):
         """Install distribution distribued somewhere as archives."""
-        if not ws:
-            ws = pkg_resources.WorkingSet([])
+        if not working_set:
+            working_set = pkg_resources.WorkingSet([])
         if not requirements:
             requirements = []
+        if not dest:
+            dest = self._dest
         # downloading
         if not urls:
             urls = self.urls
@@ -207,7 +225,7 @@ class Recipe(common.MinitageCommonRecipe):
                 # build the egg distribution in there.
                 cwd = os.getcwd()
                 os.chdir(tmp)
-                self._sanitizeenv(ws)
+                self._sanitizeenv(working_set)
                 ret = os.system('%s setup.py sdist' % sys.executable)
                 os.chdir(cwd)
                 sdists = os.path.join(tmp, 'dist')
@@ -244,24 +262,26 @@ class Recipe(common.MinitageCommonRecipe):
                         dist.project_name
                     )
                 # force env rescanning if egg was not there at init.
-                self.inst._env.scan([self._dest])
+                self.inst._env.scan([dest])
                 sdist, savail = self.inst._satisfied(requirement)
                 if sdist:
                     msg = 'If you want to rebuild, please do \'rm -rf %s\''
                     self.logger.info(msg % sdist.location)
-                    ws.add(sdist)
+                    sdist.activate()
+                    working_set.add(sdist)
                 else:
                     already_installed_dependencies = {}
                     for r in requirements:
                         already_installed_dependencies[r.project_name] = r
                     installed_dist = self._install_distribution(
                         dist,
-                        self._dest,
-                        ws,
+                        dest,
+                        working_set,
                         already_installed_dependencies)
-                    ws.add(installed_dist)
+                    installed_dist.activate()
+                    working_set.add(installed_dist)
                     requirements.append(dist.as_requirement())
-        return requirements, ws
+        return requirements, working_set
 
     def _constrain(self, requirements, dep=None):
         constrained_requirements = {}
@@ -313,13 +333,13 @@ class Recipe(common.MinitageCommonRecipe):
 
     def ensure_dependencies_there(self,
                                   dest,
-                                  ws,
+                                  working_set,
                                   already_installed_dependencies,
                                   first_call, dists):
         """Ensure all distributionss have their dependencies in the working set.
         Alsso ensure all eggs are at rights versions pointed out by buildout.
         @param dest the final egg cache path
-        @param ws the current working set
+        @param working_set the current working set
         @param already_installed_dependencies Requirements
                                               of already installed dependencies
         @param first_call instaernally parameter to show debug messages avoiding
@@ -335,15 +355,15 @@ class Recipe(common.MinitageCommonRecipe):
             deps_reqs = self.filter_already_installed_requirents(
                 deps_reqs,
                 already_installed_dependencies)
-            _, ws = self._install_requirements(deps_reqs,
+            _, working_set = self._install_requirements(deps_reqs,
                                             dest,
-                                            ws,
+                                            working_set,
                                             already_installed_dependencies,
                                             first_call = False)
 
         if first_call:
             self.logger.debug('All egg dependencies seem to be installed!')
-        return ws
+        return working_set
 
     def _install_requirements(self, reqs, dest,
                               working_set=None,
@@ -357,11 +377,11 @@ class Recipe(common.MinitageCommonRecipe):
 
         # initialise working directories
         if not os.path.exists(self.tmp_directory):
-            os.makedirs(self.tmp_directory) 
+            os.makedirs(self.tmp_directory)
         if working_set is None:
-            ws = pkg_resources.WorkingSet([])
+            working_set = pkg_resources.WorkingSet([])
         else:
-            ws = working_set
+            working_set = working_set
 
         requirements = self.filter_already_installed_requirents(
             reqs,
@@ -393,31 +413,31 @@ class Recipe(common.MinitageCommonRecipe):
                                 env.add(distro)
                         # last try, testing sources (very useful for offline mode
                         # or when your egg is not indexed)
-                        avail = env.best_match(requirement, ws)
+                        avail = env.best_match(requirement, working_set)
                         if not avail:
                             raise zc.buildout.easy_install.MissingDistribution(
-                                requirement, ws)
+                                requirement, working_set)
                         msg = 'We found a source distribution for \'%s\' in \'%s\'.'
                         self.logger.info(msg % (requirement, avail.location))
-                    dist = self._get_dist(avail, ws)
-                    dist = self._install_distribution(dist,
+                    fdist = self._get_dist(avail, working_set)
+                    dist = self._install_distribution(fdist,
                                                       dest,
-                                                      ws,
+                                                      working_set,
                                                       already_installed_dependencies)
                 already_installed_dependencies[requirement.project_name] = requirement
                 # honouring extra requirements
                 if requirement.extras:
-                    _, ws = self._install_requirements(
+                    _, working_set = self._install_requirements(
                         dist.requires(requirement.extras),
                         dest,
-                        ws,
+                        working_set,
                         already_installed_dependencies,
                         first_call=False
                     )
                 dists.append(dist)
 
             for dist in dists:
-                ws.add(dist)
+                working_set.add(dist)
                 # Check whether we picked a version and, if we did, report it:
                 if not (
                     dist.precedence == pkg_resources.DEVELOP_DIST
@@ -433,16 +453,16 @@ class Recipe(common.MinitageCommonRecipe):
                         raise zc.buildout.UserError(
                             'Picked: %s = %s' % (dist.project_name,
                                                  dist.version))
-            ws = self.ensure_dependencies_there(dest,
-                                                ws,
+            working_set = self.ensure_dependencies_there(dest,
+                                                working_set,
                                                 already_installed_dependencies,
                                                 first_call, dists )
 
-        return already_installed_dependencies.values(), ws
+        return already_installed_dependencies.values(), working_set
 
 
     def _install_distribution(self, dist, dest,
-                              ws=None, already_installed_dependencies = None):
+                              working_set=None, already_installed_dependencies = None):
         """Install a setuptool distribution
         into the eggs cache."""
 
@@ -510,14 +530,14 @@ class Recipe(common.MinitageCommonRecipe):
             r = dist.as_requirement()
             if not r.project_name in already_installed_dependencies:
                 already_installed_dependencies[r.project_name] = r
-            _, ws = self._install_requirements(requires,
+            _, working_set = self._install_requirements(requires,
                                        dest,
-                                       ws,
+                                       working_set,
                                        already_installed_dependencies,
                                        first_call = False)
 
         # compile time
-        self._run_easy_install(tmp, ['%s' % location], ws=ws)
+        self._run_easy_install(tmp, ['%s' % location], working_set=working_set)
         # scan to seach resulted eggs.
         dists = []
         env = pkg_resources.Environment(
@@ -568,10 +588,12 @@ class Recipe(common.MinitageCommonRecipe):
             os.rename(d.location, newloc)
             # regenerate pyc's in this directory
             zc.buildout.easy_install.redo_pyc(os.path.abspath(newloc))
-
-            d = pkg_resources.Distribution.from_filename(newloc)
-            print d
-            result.append(d)
+            nd = pkg_resources.Distribution.from_filename(
+                newloc, metadata=pkg_resources.PathMetadata(
+                    newloc, os.path.join(newloc, 'EGG-INFO')
+                )
+            )      
+            result.append(nd)
         self._call_hook(
             '%s-post-setup-hook' % (d.project_name.lower()),
             newloc
@@ -580,14 +602,17 @@ class Recipe(common.MinitageCommonRecipe):
             self.eggs_caches += [dest]
         rdist = None
         if result:
-            rdist = result[0] 
+            renv = pkg_resources.Environment([dest],
+                                            python=self.executable_version) 
+
+            rdist = result[0]
         if not rdist:
             self._env.scan(self.eggs_caches)
-            rdist = self._env.best_match(dist.as_requirement(), ws)
+            rdist = self._env.best_match(dist.as_requirement(), working_set)
         self.logger.debug("Got %s.", rdist)
         return rdist
 
-    def _run_easy_install(self, prefix, specs, caches=None, ws=None):
+    def _run_easy_install(self, prefix, specs, caches=None, working_set=None):
         """Install a python egg using easy_install."""
         if not caches:
             caches = []
@@ -615,7 +640,7 @@ class Recipe(common.MinitageCommonRecipe):
         for dir in caches + self.eggs_caches:
             args += ('-f %s' % dir,)
 
-        self._sanitizeenv(ws)
+        self._sanitizeenv(working_set)
 
         cwd = os.getcwd()
         for spec in specs:
@@ -651,7 +676,7 @@ class Recipe(common.MinitageCommonRecipe):
 
         os.chdir(cwd)
 
-    def _get_dist(self, avail, ws):
+    def _get_dist(self, avail, working_set):
         """Get a distribution."""
 
         requirement = pkg_resources.Requirement.parse(
