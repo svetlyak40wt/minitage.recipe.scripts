@@ -62,7 +62,7 @@ class Recipe(common.MinitageCommonRecipe):
             self._set_py_path()
 
             # preconfigure hook
-            self._call_hook('post-unpack-hook') 
+            self._call_hook('post-unpack-hook')
 
             # choose configure
             self.configure = self._choose_configure(self.compil_dir)
@@ -82,6 +82,9 @@ class Recipe(common.MinitageCommonRecipe):
 
             # running make
             self._make(self.build_dir, self.make_targets)
+
+            # post build hook
+            self._call_hook('post-build-hook')
 
             # installing
             self._make_install(self.build_dir)
