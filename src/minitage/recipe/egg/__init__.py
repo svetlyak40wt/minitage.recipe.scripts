@@ -131,7 +131,11 @@ class Recipe(common.MinitageCommonRecipe):
     def install(self):
         """installs an egg
         """
-        self.working_set()
+        reqs, working_set = self.working_set()
+        # compatibility with zc.buildout.buildout.Builout.install_and_load_method and so on.
+        for entry in working_set:
+            if not entry in pkg_resources.working_set:
+                pkg_resources.working_set.add(entry)  
         return []
 
     def working_set(self, extras=None):
@@ -270,7 +274,8 @@ class Recipe(common.MinitageCommonRecipe):
             r = merge_extras(r, requirement)
             # if an egg has precised some version stuff not controlled by
             # our version.cfg, let it do it !
-            r = merge_specs(r, requirement)
+            if not r.specs:
+                r = merge_specs(r, requirement)
             constrained_requirements[r.project_name] = r
         return constrained_requirements.values()
 
@@ -309,7 +314,7 @@ class Recipe(common.MinitageCommonRecipe):
                                   dest,
                                   ws,
                                   already_installed_dependencies,
-                                  first_call):
+                                  first_call, dists):
         """Ensure all distributionss have their dependencies in the working set.
         Alsso ensure all eggs are at rights versions pointed out by buildout.
         @param dest the final egg cache path
@@ -321,7 +326,7 @@ class Recipe(common.MinitageCommonRecipe):
 
         """
         deps_reqs = []
-        for dist in ws:
+        for dist in dists:
             r = self.inst._constrain(dist.as_requirement())
             already_installed_dependencies.setdefault(r.project_name, r)
             deps_reqs.extend(dist.requires())
@@ -430,7 +435,7 @@ class Recipe(common.MinitageCommonRecipe):
             ws = self.ensure_dependencies_there(dest,
                                                 ws,
                                                 already_installed_dependencies,
-                                                first_call)
+                                                first_call, dists )
 
         return already_installed_dependencies.values(), ws
 
@@ -572,12 +577,12 @@ class Recipe(common.MinitageCommonRecipe):
         )
         if not dest in self.eggs_caches:
             self.eggs_caches += [dest]
-        self._env.scan(self.eggs_caches)
-        rdist = self._env.best_match(dist.as_requirement(), ws)
+        rdist = None
+        if result:
+            rdist = result[0] 
         if not rdist:
-            if result:
-                rdist = result[0]
-
+            self._env.scan(self.eggs_caches)
+            rdist = self._env.best_match(dist.as_requirement(), ws)
         self.logger.debug("Got %s.", rdist)
         return rdist
 
