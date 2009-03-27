@@ -2,6 +2,11 @@
 CHANGELOG
 =======================
 
+0.21
+=====
+
+    - Fix bug in compilation  directory guessing
+
 0.20
 ======
 

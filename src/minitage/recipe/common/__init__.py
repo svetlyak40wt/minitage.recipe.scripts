@@ -707,7 +707,7 @@ class MinitageCommonRecipe(object):
         if destination:
             os.chdir(cwd)
 
-    def _get_compil_dir(self, directory):
+    def _get_compil_dir(self, directory, filter=True):
         """Get the compilation directory after creation.
         Basically, the first repository in the directory
         which is not the download cache.
@@ -715,7 +715,11 @@ class MinitageCommonRecipe(object):
             - directory where we will compile.
         """
         self.logger.info('Guessing compilation directory')
-        contents = os.listdir(directory)
+        contents = os.listdir(directory) 
+        if filter:
+            contents = [i 
+                        for i in os.listdir(directory) 
+                        if not i .startswith('.')]
         # remove download dir
         if '.download' in contents:
             del contents[contents. index('.download')]
