@@ -2,6 +2,12 @@
 CHANGELOG
 =======================
 
+0.22
+=====
+
+    - Introduce a new recipe : minitage.recipe:printer which prints/dumps to a
+      file all versions eggs needed to achieve requirements.
+
 0.21
 =====
 
