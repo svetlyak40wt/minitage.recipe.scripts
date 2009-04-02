@@ -50,10 +50,14 @@ class Recipe(egg.Recipe):
         if 'file' in self.options:
             s = open(self.options['file'], 'w')
 
+        if not ('quiet' in self.options):
+            self.logger.info('Maybe put this in a cfg like file ;)')
+            print 
+            print
         s.write("[versions]\n")
         reqs = []
         for dist in ws:
-           reqs.append("%s\n" % dist.as_requirement())
+           reqs.append("%s=%s\n" % (dist.project_name, dist.version))
         reqs.sort()
         s.write(''.join(reqs))
         
@@ -65,6 +69,8 @@ class Recipe(egg.Recipe):
                 print open(self.options['file']).read()
             else:
                 print s.getvalue()
+        if not ('quiet' in self.options):
+            self.logger.info('------------')
 
         return []
 
