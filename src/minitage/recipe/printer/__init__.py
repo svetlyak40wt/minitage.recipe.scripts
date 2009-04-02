@@ -15,6 +15,8 @@
 __docformat__ = 'restructuredtext en'
 
 import os
+import re
+import pkg_resources
 
 from minitage.recipe import egg
 import StringIO
@@ -44,8 +46,16 @@ class Recipe(egg.Recipe):
         """Dump all eggs versions needed for part.
         """
         self.logger.info('Versions pinned:')
+        sitepackages = re.sub('bin.*',
+                              'lib/python%s/site-packages' % self.executable_version,
+                               self.executable)
+        scan_paths = [self.buildout['buildout']['develop-eggs-directory'],
+                      self.buildout['buildout']['eggs-directory'],
+                      sitepackages] + self.extra_paths
         # install needed stuff and get according working set
         reqs, ws = self.working_set()
+        env = pkg_resources.Environment(scan_paths, python = self.executable_version)
+        required_dists = ws.resolve(reqs, env) 
         s = StringIO.StringIO()
         if 'file' in self.options:
             s = open(self.options['file'], 'w')
@@ -56,7 +66,7 @@ class Recipe(egg.Recipe):
             print
         s.write("[versions]\n")
         reqs = []
-        for dist in ws:
+        for dist in list(set(required_dists)):
            reqs.append("%s=%s\n" % (dist.project_name, dist.version))
         reqs.sort()
         s.write(''.join(reqs))
