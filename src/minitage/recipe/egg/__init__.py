@@ -733,17 +733,17 @@ class Recipe(common.MinitageCommonRecipe):
 
         patch_options = ' '.join(
             self.options.get(
-                '%s-patch-options' % dist.project_name.lower(), '-p0'
+                '%s-patch-options' % dist.project_name, '-p0'
             ).split()
         )
         patches = self.options.get(
-            '%s-patches' % dist.project_name.lower(),
+            '%s-patches' % dist.project_name,
             '').split()
         # conditionnaly add OS specifics patches.
         patches.extend(
             splitstrip(
                 self.options.get(
-                    '%s-%s-patches' % (dist.project_name.lower(),
+                    '%s-%s-patches' % (dist.project_name,
                                        self.uname.lower()),
                     ''
                 )
