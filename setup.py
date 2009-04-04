@@ -6,7 +6,7 @@ setupdir = os.path.abspath(
 os.chdir(setupdir)
 
 name='minitage.recipe'
-version = '0.25'
+version = '0.26'
 
 def read(rnames):
     return open(
@@ -61,6 +61,7 @@ setup(
             'zdu = %s:Recipe' % 'minitage.recipe.du',
             'cmmi = %s:Recipe' % 'minitage.recipe.cmmi',
             'scripts = %s:Recipe' % 'minitage.recipe.scripts',
+            'wsgi = %s:Recipe' % 'minitage.recipe.wsgi',
         ]
     },
 )

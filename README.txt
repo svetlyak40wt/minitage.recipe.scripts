@@ -10,13 +10,15 @@ README
 
 
 The recipe has those entry point:
-    - cmmi: install configure/make/make install softwares
-    - fetch: fetch something somewhere
-    - eggs: install python eggs / packages 'setuptoolisables'
-    - printer: print or dump to a file all versions needed to achieve eggs
+    - *cmmi*: install configure/make/make install softwares
+    - *fetch*: fetch something somewhere
+    - *eggs*: install python eggs / packages 'setuptoolisables'
+    - *printer*: print or dump to a file all versions needed to achieve eggs
       requirements (versions.cfg made easy)
-    - scripts: install scripts from an egg and install egg dependencies if they
+    - *scripts*: install scripts from an egg and install egg dependencies if they
       are not already in the cache
+    - *wsgi*: Make a Python paste configuration file eatable by mod_wsgi with
+      all the eggs dependencies you need.
 
 The reasons why i have rewrite yet another buildout recipe builder are:
     - Support for downloading stuff
