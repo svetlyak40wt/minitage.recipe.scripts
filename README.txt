@@ -30,7 +30,7 @@ The reasons why i have rewrite yet another buildout recipe builder are:
 
 You can browse the code on minitage's following resources:
 
-    - http://git.minitage.org/git/minitage/minitage/eggs/minitage.recipe
+    - http://git.minitage.org/git/minitage/eggs/minitage.recipe/
     - http://www.minitage.org/trac/browser/minitage/eggs/minitage.recipe
 
 
