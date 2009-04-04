@@ -16,7 +16,7 @@ def read(rnames):
 setup(
     name=name,
     version=version,
-    description="zc.buildout recipe for compiling and installing software or python packages.",
+    description="zc.buildout recipes to compile and install software or python packages and generate scripts.",
     long_description= (
         read('README.txt')
         + '\n' +
