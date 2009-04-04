@@ -5,7 +5,7 @@ CHANGELOG
 0.26
 =====
 
-    - Introduce the minitage.recipe:wsgi recipe wich wrapps a paste wsgi application
+    - Introduce the minitage.recipe:wsgi recipe wich wraps a paste wsgi application
       in a script eatable by mod_wsgi
 
 0.25
