@@ -352,10 +352,10 @@ class Recipe(common.MinitageCommonRecipe):
             already_installed_dependencies.setdefault(r.project_name, r)
             deps_reqs.extend(dist.requires())
         if deps_reqs:
-            deps_reqs = self.filter_already_installed_requirents(
+            ideps_reqs = self.filter_already_installed_requirents(
                 deps_reqs,
                 already_installed_dependencies)
-            _, working_set = self._install_requirements(deps_reqs,
+            d_rs, working_set = self._install_requirements(ideps_reqs,
                                             dest,
                                             working_set,
                                             already_installed_dependencies,
@@ -437,6 +437,10 @@ class Recipe(common.MinitageCommonRecipe):
                 dists.append(dist)
 
             for dist in dists:
+                similar_dist = working_set.find(pkg_resources.Requirement.parse(dist.project_name))
+                if similar_dist and (similar_dist != dist):
+                    working_set.entries.remove(similar_dist.location)
+
                 working_set.add(dist)
                 # Check whether we picked a version and, if we did, report it:
                 if not (

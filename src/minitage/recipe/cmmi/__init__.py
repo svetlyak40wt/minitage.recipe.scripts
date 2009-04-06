@@ -11,16 +11,9 @@
 # along with this program; see the file COPYING. If not, write to the
 # Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
-import imp
-import logging
-import md5
 import os
 import shutil
-import tempfile
-import urllib
-import urlparse
 
-import zc.buildout
 from minitage.recipe import common
 from minitage.core import core
 
@@ -42,6 +35,9 @@ class Recipe(common.MinitageCommonRecipe):
             # downloading or get the path
             # in the cache if we are offline
             fname = self._download()
+
+            # preconfigure hook
+            self._call_hook('pre-unpack-hook')
 
             # unpack
             self._unpack(fname)
@@ -113,5 +109,6 @@ class Recipe(common.MinitageCommonRecipe):
     def update(self):
         """Update the recipe.
         wrapper to install"""
+        self.install()
 
 
