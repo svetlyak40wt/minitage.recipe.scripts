@@ -165,6 +165,28 @@ class MinitageCommonRecipe(object):
             )
         ).read().replace('\n', '')
 
+        # where is the python installed, we need it to filter later
+        # wrong site-packages picked up by setuptools envrionments scans
+        self.executable_prefix = os.path.abspath(
+                subprocess.Popen(
+                    [self.executable, '-c', 'import sys;print sys.prefix'],
+                    stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                    close_fds=True).stdout.read().replace('\n', '')
+            )
+        if not os.path.isdir(self.executable_prefix):
+            message = 'Python doesnt find its prefix : %s' % self.executable_prefix
+            self.logger.error(message)
+            raise core.MinimergeError(message)
+        
+        self.executable_lib = os.path.join(
+                        self.executable_prefix,
+                        'lib', 'python%s' % self.executable_version)
+
+        self.executable_site_packages = os.path.join(
+                        self.executable_prefix,
+                        'lib', 'python%s' % self.executable_version, 
+                        'site-packages')
+
         # site-packages defaults
         self.site_packages = 'site-packages-%s' % self.executable_version
         self.site_packages_path = self.options.get(
@@ -550,7 +572,24 @@ class MinitageCommonRecipe(object):
         # setuptool ws maybe?
         if ws:
             self.pypath.extend(ws.entries)
-        os.environ['PYTHONPATH'] = ':'.join(self.pypath)
+        # filter out site-packages not relevant to our python installation
+        remove_last_slash = re.compile('\/$').sub
+        pypath = []
+        for entry in [remove_last_slash('', e) for e in self.pypath]:
+            sp = (self.executable_site_packages, 
+                  os.path.join('lib', 'python%s' % self.executable_version, 
+                  'site-packages')
+            )
+            lib = (self.executable_lib, 
+                   os.path.join('lib', 'python%s' % self.executable_version)
+            )
+            for path, atom in (sp, lib):
+                add = True
+                if entry.endswith(atom) and not path == entry:
+                    add = False
+            if add :
+                pypath.append(entry)
+        os.environ['PYTHONPATH'] = ':'.join(pypath)
 
 
     def _set_path(self):

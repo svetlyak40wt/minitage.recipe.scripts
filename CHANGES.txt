@@ -2,6 +2,15 @@
 CHANGELOG
 =======================
 
+0.27
+=====
+
+    - Fix an annoying bug when you are using virtualenv and a classical
+      python as executable in your recipe, it may occur that sometimes, the
+      virtualenv site-packages is appended to PYTHONPATH. As a fix, we now
+      filter all python core lib directories and site packages that are not
+      relevant to the python used by the recipe.
+
 0.26
 =====
 
