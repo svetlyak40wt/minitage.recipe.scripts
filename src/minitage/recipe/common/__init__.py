@@ -167,16 +167,28 @@ class MinitageCommonRecipe(object):
 
         # where is the python installed, we need it to filter later
         # wrong site-packages picked up by setuptools envrionments scans
-        self.executable_prefix = os.path.abspath(
-                subprocess.Popen(
-                    [self.executable, '-c', 'import sys;print sys.prefix'],
-                    stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                    close_fds=True).stdout.read().replace('\n', '')
-            )
+        try:
+            self.executable_prefix = os.path.abspath(
+                    subprocess.Popen(
+                        [self.executable, '-c', 'import sys;print sys.prefix'],
+                        stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                        close_fds=True).stdout.read().replace('\n', '')
+                )
+        except:
+            # getting the path from the link, if we can:
+            if not self.executable.endswith('/'):
+                executable_directory = self.executable.split('/')[:-1]
+                if executable_directory[-1] in ['bin', 'sbin']:
+                    level = -1
+                else:
+                    level = None
+                self.executable_prefix = '/'.join(executable_directory[:level])
+            else:
+                raise core.MinimergeError('Your python executable seems to point to a directory!!!')
+
         if not os.path.isdir(self.executable_prefix):
-            message = 'Python doesnt find its prefix : %s' % self.executable_prefix
-            self.logger.error(message)
-            raise core.MinimergeError(message)
+            message = 'Python seems not to find its prefix : %s' % self.executable_prefix
+            self.logger.warning(message)
         
         self.executable_lib = os.path.join(
                         self.executable_prefix,

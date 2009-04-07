@@ -2,10 +2,16 @@
 CHANGELOG
 =======================
 
+0.29
+====
+
+    - Fix bug in recipes initialization because of buildout auto-ordering
+
+
 0.28
 ====
 
-    - Add another hool to the cmmi recipe: post-download
+    - Add another hook to the cmmi recipe: post-download
 
 0.27
 =====
