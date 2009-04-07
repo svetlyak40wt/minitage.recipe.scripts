@@ -137,11 +137,6 @@ class Recipe(egg.Recipe):
                          for s in provider.metadata_listdir('scripts')
                          if not s in already_installed]
                 for script in items:
-                    sname = name
-                    if scripts:
-                        sname = scripts.get(name)
-                        if sname is None:
-                            continue
                     if not option_scripts or (script in option_scripts):
                         script_filename = provider._fn(
                             provider.egg_info, 'scripts/%s' % script)
