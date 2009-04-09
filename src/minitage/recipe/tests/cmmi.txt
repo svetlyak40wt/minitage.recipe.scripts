@@ -1,0 +1,52 @@
+Tests for minitage.recipe;cmmi recipe
+-------------------------------------------------------
+
+Let's create a buildout configuration file::
+
+    >>> data = """
+    ... [buildout]
+    ... parts =
+    ...     part
+    ... extensions = buildout.minitagificator
+    ... [part]
+    ... recipe=minitage.recipe.cmmi
+    ... on-install=true
+    ... on-update=true
+    ... cmds=ls
+    ... [egg]
+    ... recipe=zc.recipe.egg:eggs
+    ... eggs=zc.buildout
+    ... [script]
+    ... recipe=zc.recipe.egg:scripts
+    ... eggs=zc.buildout
+    ... """
+    >>> rmdir(tempdir, 'buildout.test')
+    >>> cd(tempdir)
+    >>> sh('mkdir buildout.test')
+    mkdir buildout.test
+    <BLANKLINE>
+    >>> cd('buildout.test')
+    >>> touch('buildout.cfg', data=data)
+    >>> ls('.')
+    buildout.cfg
+
+Run the buildout and see the patch in action :=)::
+
+    >>> a= [mkdir(d) for d in ('eggs', 'develop-eggs', 'bin', 'src')]
+    >>> install_develop_eggs(['minitage.recipe'])
+    >>> install_eggs_from_pathes(['minitage.recipe'], sys.path)
+    >>> buildout('bootstrap')
+    Creating directory '/tmp/buildout.test/parts'.
+    Generated script '/tmp/buildout.test/bin/buildout'.
+    >>> sh('bin/buildout install part')
+    bin/buildout install part
+    Getting distribution for 'iw.recipe.cmd'.
+    Got iw.recipe.cmd ...
+    minitage.recipe: Picked: zc.buildout = ...
+    minitage.recipe: Picked: setuptools = ...
+    Unused options for buildout: 'download-directory'.
+    Installing part.
+    Unused options for part: 'cmds' 'on-update' 'on-install'.
+    <BLANKLINE>
+
+

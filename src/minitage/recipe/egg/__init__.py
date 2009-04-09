@@ -46,15 +46,35 @@ class Recipe(common.MinitageCommonRecipe):
     """
     Downloads and installs a distutils Python distribution.
     """
+
     def __init__(self, buildout, name, options):
         common.MinitageCommonRecipe.__init__(self,
                                     buildout, name, options)
         # override recipe default and download into a subdir
         # minitage-cache/eggs
         # separate archives in downloaddir/minitage
+        options['bin-directory'] = buildout['buildout']['bin-directory']
         self.download_cache = os.path.abspath(
             os.path.join(self.download_cache, 'eggs')
         )
+
+        self.extra_paths = [
+            os.path.join(buildout['buildout']['directory'], p.strip())
+            for p in options.get('extra-paths', '').split('\n')
+            if p.strip()
+            ]      
+        # compatibility with zc.recipe.egg:
+        relative_paths = options.get(
+            'relative-paths',
+            buildout['buildout'].get('relative-paths', 'false')
+        )
+        if relative_paths == 'true':
+            options['buildout-directory'] = buildout['buildout']['directory']
+            self._relative_paths = options['buildout-directory']
+        else:
+            self._relative_paths = ''
+            assert relative_paths == 'false'
+        # end compat
 
         # caches
         self.eggs_caches = [
@@ -143,6 +163,8 @@ class Recipe(common.MinitageCommonRecipe):
         requirements = None
         if not extras:
             extras = []
+        elif isinstance(extras, tuple):
+            extras = list(extras)
 
         if not dest:
             dest = self._dest
@@ -186,7 +208,7 @@ class Recipe(common.MinitageCommonRecipe):
         env = pkg_resources.Environment(self.eggs_caches,
                                         python=self.executable_version)
 
-        return requirements, working_set
+        return ['%s' % r for r in requirements], working_set
 
     def install_static_distributions(self,
                                      working_set=None,
@@ -437,9 +459,15 @@ class Recipe(common.MinitageCommonRecipe):
                 dists.append(dist)
 
             for dist in dists:
+                # remove similar dists found in sys.path if we have ones, to
+                # avoid conflict errors
                 similar_dist = working_set.find(pkg_resources.Requirement.parse(dist.project_name))
                 if similar_dist and (similar_dist != dist):
                     working_set.entries.remove(similar_dist.location)
+                    if similar_dist.location in working_set.entry_keys:
+                        del working_set.entry_keys[similar_dist.location]
+                    if similar_dist.project_name in working_set.by_key:
+                        del working_set.by_key[similar_dist.project_name]
 
                 working_set.add(dist)
                 # Check whether we picked a version and, if we did, report it:

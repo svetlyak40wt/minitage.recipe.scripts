@@ -73,7 +73,7 @@ class MinitageCommonRecipe(object):
             lenv = buildout.get(options['environment'].strip(), {})
             for key in lenv:
                 os.environ[key] = lenv[key]
-        
+
         # maybe md5
         self.md5 = self.options.get('md5sum', None)
 
@@ -127,17 +127,18 @@ class MinitageCommonRecipe(object):
         # fallback to sys.executable or
         # python-2.4 if self.name = site-packages-2.4
         # python-2.5 if self.name = site-packages-2.5
-        self.executable = os.path.abspath(options.get('executable', sys.executable))
-        if options.get('python'):
+        self.executable= None
+        if 'executable' in options:
+            self.executable = os.path.abspath(options.get('executable').strip())
+        elif 'python' in options:
             self.executable = self.buildout.get(
-                options['python'].strip(), 
-                {}).get('executable')
-        if not 'executable' in options:
+                options['python'].strip(),
+                {}).get('executable', None)
+        if not self.executable:
             # if we are an python package
             # just get the right interpreter for us.
             # and add ourselves to the deps
             # to get the cflags/ldflags in env.
-            #
             for pyver in core.PYTHON_VERSIONS:
                 if self.name == 'site-packages-%s' % pyver:
                     interpreter_path = os.path.join(
@@ -156,6 +157,11 @@ class MinitageCommonRecipe(object):
                             'python%s' % pyver
                         )
                     )
+        # If we have not python selected yet, default to the current one
+        if not self.executable:
+            self.executable = self.buildout.get(
+                buildout.get('buildout', {}).get('python', '').strip(), {}
+                ).get('executable', sys.executable)
 
         # which python version are we using ?
         self.executable_version = os.popen(
@@ -176,27 +182,31 @@ class MinitageCommonRecipe(object):
                 )
         except:
             # getting the path from the link, if we can:
-            if not self.executable.endswith('/'):
-                executable_directory = self.executable.split('/')[:-1]
-                if executable_directory[-1] in ['bin', 'sbin']:
-                    level = -1
+            try:
+                if not self.executable.endswith('/'):
+                    executable_directory = self.executable.split('/')[:-1]
+                    if executable_directory[-1] in ['bin', 'sbin']:
+                        level = -1
+                    else:
+                        level = None
+                    self.executable_prefix = '/'.join(executable_directory[:level])
                 else:
-                    level = None
-                self.executable_prefix = '/'.join(executable_directory[:level])
-            else:
-                raise core.MinimergeError('Your python executable seems to point to a directory!!!')
+                    raise core.MinimergeError('Your python executable seems to point to a directory!!!')
+            except:
+                raise
+
 
         if not os.path.isdir(self.executable_prefix):
             message = 'Python seems not to find its prefix : %s' % self.executable_prefix
             self.logger.warning(message)
-        
+
         self.executable_lib = os.path.join(
                         self.executable_prefix,
                         'lib', 'python%s' % self.executable_version)
 
         self.executable_site_packages = os.path.join(
                         self.executable_prefix,
-                        'lib', 'python%s' % self.executable_version, 
+                        'lib', 'python%s' % self.executable_version,
                         'site-packages')
 
         # site-packages defaults
@@ -588,11 +598,11 @@ class MinitageCommonRecipe(object):
         remove_last_slash = re.compile('\/$').sub
         pypath = []
         for entry in [remove_last_slash('', e) for e in self.pypath]:
-            sp = (self.executable_site_packages, 
-                  os.path.join('lib', 'python%s' % self.executable_version, 
+            sp = (self.executable_site_packages,
+                  os.path.join('lib', 'python%s' % self.executable_version,
                   'site-packages')
             )
-            lib = (self.executable_lib, 
+            lib = (self.executable_lib,
                    os.path.join('lib', 'python%s' % self.executable_version)
             )
             for path, atom in (sp, lib):
@@ -766,10 +776,10 @@ class MinitageCommonRecipe(object):
             - directory where we will compile.
         """
         self.logger.info('Guessing compilation directory')
-        contents = os.listdir(directory) 
+        contents = os.listdir(directory)
         if filter:
-            contents = [i 
-                        for i in os.listdir(directory) 
+            contents = [i
+                        for i in os.listdir(directory)
                         if not i .startswith('.')]
         # remove download dir
         if '.download' in contents:
