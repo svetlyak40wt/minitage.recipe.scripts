@@ -53,16 +53,17 @@ class Recipe(egg.Recipe):
                       self.buildout['buildout']['eggs-directory'],
                       sitepackages] + self.extra_paths
         # install needed stuff and get according working set
-        reqs, ws = self.working_set()
+        sreqs, ws = self.working_set()
+        reqs = [pkg_resources.Requirement.parse(r) for r in sreqs]
         env = pkg_resources.Environment(scan_paths, python = self.executable_version)
-        required_dists = ws.resolve(reqs, env) 
+        required_dists = ws.resolve(reqs, env)
         s = StringIO.StringIO()
         if 'file' in self.options:
             s = open(self.options['file'], 'w')
 
         if not ('quiet' in self.options):
             self.logger.info('Maybe put this in a cfg like file ;)')
-            print 
+            print
             print
         s.write("[versions]\n")
         reqs = []
@@ -70,10 +71,12 @@ class Recipe(egg.Recipe):
            reqs.append("%s=%s\n" % (dist.project_name, dist.version))
         reqs.sort()
         s.write(''.join(reqs))
-        
-        if isinstance(s, file):
+        if 'file' in self.options:
+            self.logger.info('Generated: %s' % self.options['file'])
+
+        if 'file' in self.options:
             s.close()
-        
+
         if not ('quiet' in self.options):
             if isinstance(s, file):
                 print open(self.options['file']).read()

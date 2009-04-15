@@ -43,6 +43,17 @@ def appendVar(var, values, separator='', before=False):
         var = "%s%s%s" % (tmp, separator, oldvar)
     return var
 
+def which(program, environ=None, key = 'PATH', split = ':'):
+    if not environ:
+        environ = os.environ
+    PATH=environ.get(key, '').split(split)
+    for entry in PATH:
+        fp = os.path.abspath(os.path.join(entry, program))
+        if os.path.exists(fp):
+            return fp
+    raise IOError('Program not fond: %s in %s ' % (program, PATH))
+
+
 class MinitageCommonRecipe(object):
     """
     Downloads and installs a distutils Python distribution.
@@ -68,6 +79,18 @@ class MinitageCommonRecipe(object):
         self.revision = self.options.get('revision', None)
         self.scm_args = self.options.get('scm-args', None)
 
+        # If 'download-cache' has not been specified,
+        # fallback to [buildout]['downloads']
+        buildout['buildout'].setdefault(
+            'download-cache',
+            buildout['buildout'].get(
+                'download-cache',
+                os.path.join(
+                    buildout['buildout']['directory'],
+                    'downloads'
+                )
+            )
+        )
         # update with the desired env. options
         if 'environment' in options:
             lenv = buildout.get(options['environment'].strip(), {})
@@ -79,30 +102,35 @@ class MinitageCommonRecipe(object):
 
         # system variables
         self.uname = sys.platform
-        # linuxXXX ?
         if 'linux' in self.uname:
+            # linuxXXX ?
             self.uname = 'linux'
         self.cwd = os.getcwd()
         self.minitage_directory = os.path.abspath(
             os.path.join(self.buildout['buildout']['directory'], '..', '..')
         )
+
         # destination
-        options['location'] = options.get('location',
+        options['location'] = os.path.abspath(options.get('location',
                                           os.path.join(
                                               buildout['buildout']['parts-directory'],
                                               options.get('name', self.name)
                                           )
-                                         )
+                                         ))
         self.prefix = options['location']
+        if options.get("shared", "false").lower() == "true":
+            pass
 
         # configure script for cmmi packages
         self.configure = options.get('configure', 'configure')
+
         # prefix separtor in ./configure --prefix%SEPARATOR%path
         self.prefix_separator = options.get('prefix-separator', '=')
         if self.prefix_separator == '':
             self.prefix_separator = ' '
         self.prefix_option = self.options.get('prefix-option',
                                               '--prefix%s' % self.prefix_separator)
+
         # if we are installing in minitage, try to get the
         # minibuild name and object there.
         self.str_minibuild = os.path.split(self.cwd)[1]
@@ -122,116 +150,6 @@ class MinitageCommonRecipe(object):
             self.libraries_names += '-l%s ' % l
         self.rpath = splitstrip(self.options.get('rpath', ''))
 
-        # Defining the python interpreter used to install python stuff.
-        # using the one defined in the key 'executable'
-        # fallback to sys.executable or
-        # python-2.4 if self.name = site-packages-2.4
-        # python-2.5 if self.name = site-packages-2.5
-        self.executable= None
-        if 'executable' in options:
-            self.executable = os.path.abspath(options.get('executable').strip())
-        elif 'python' in options:
-            self.executable = self.buildout.get(
-                options['python'].strip(),
-                {}).get('executable', None)
-        if not self.executable:
-            # if we are an python package
-            # just get the right interpreter for us.
-            # and add ourselves to the deps
-            # to get the cflags/ldflags in env.
-            for pyver in core.PYTHON_VERSIONS:
-                if self.name == 'site-packages-%s' % pyver:
-                    interpreter_path = os.path.join(
-                        self.minitage_directory,
-                        'dependencies', 'python-%s' % pyver, 'parts',
-                        'part'
-                    )
-                    self.executable = os.path.join(
-                        interpreter_path, 'bin', 'python'
-                    )
-                    self.minitage_dependencies.append(interpreter_path)
-                    self.includes.append(
-                        os.path.join(
-                            interpreter_path,
-                            'include',
-                            'python%s' % pyver
-                        )
-                    )
-        # If we have not python selected yet, default to the current one
-        if not self.executable:
-            self.executable = self.buildout.get(
-                buildout.get('buildout', {}).get('python', '').strip(), {}
-                ).get('executable', sys.executable)
-
-        # which python version are we using ?
-        self.executable_version = os.popen(
-            '%s -c "%s"' % (
-                self.executable ,
-                'import sys;print sys.version[:3]'
-            )
-        ).read().replace('\n', '')
-
-        # where is the python installed, we need it to filter later
-        # wrong site-packages picked up by setuptools envrionments scans
-        try:
-            self.executable_prefix = os.path.abspath(
-                    subprocess.Popen(
-                        [self.executable, '-c', 'import sys;print sys.prefix'],
-                        stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                        close_fds=True).stdout.read().replace('\n', '')
-                )
-        except:
-            # getting the path from the link, if we can:
-            try:
-                if not self.executable.endswith('/'):
-                    executable_directory = self.executable.split('/')[:-1]
-                    if executable_directory[-1] in ['bin', 'sbin']:
-                        level = -1
-                    else:
-                        level = None
-                    self.executable_prefix = '/'.join(executable_directory[:level])
-                else:
-                    raise core.MinimergeError('Your python executable seems to point to a directory!!!')
-            except:
-                raise
-
-
-        if not os.path.isdir(self.executable_prefix):
-            message = 'Python seems not to find its prefix : %s' % self.executable_prefix
-            self.logger.warning(message)
-
-        self.executable_lib = os.path.join(
-                        self.executable_prefix,
-                        'lib', 'python%s' % self.executable_version)
-
-        self.executable_site_packages = os.path.join(
-                        self.executable_prefix,
-                        'lib', 'python%s' % self.executable_version,
-                        'site-packages')
-
-        # site-packages defaults
-        self.site_packages = 'site-packages-%s' % self.executable_version
-        self.site_packages_path = self.options.get(
-            'site-packages',
-            os.path.join(
-                self.buildout['buildout']['directory'],
-                'parts',
-                self.site_packages)
-        )
-
-        # If 'download-cache' has not been specified,
-        # fallback to [buildout]['downloads']
-        buildout['buildout'].setdefault(
-            'download-cache',
-            buildout['buildout'].get(
-                'download-cache',
-                os.path.join(
-                    buildout['buildout']['directory'],
-                    'downloads'
-                )
-            )
-        )
-
         # separate archives in downloaddir/minitage
         self.download_cache = os.path.join(
             buildout['buildout']['directory'],
@@ -250,7 +168,7 @@ class MinitageCommonRecipe(object):
 
         self.patch_options = ' '.join(
             self.options.get(
-                'patch-options', '-p0'
+                'patch-options', '-Np0'
             ).split()
         )
         self.patches = self.options.get('patches', '').split()
@@ -280,35 +198,31 @@ class MinitageCommonRecipe(object):
         # and all target must be specified
         # We will default to make '' and make install
         self.make_targets = splitstrip(
-            self.options.get(
-                'make-targets',
-                ' '
-            )
-            , '\n'
+            self.options.get( 'make-targets', ' '),
+            '\n'
         )
         if not self.make_targets:
             self.make_targets = ['']
 
         self.install_targets =  splitstrip(
-            self.options.get(
-                'make-install-targets',
-                'install'
-            )
-            , '\n'
+            self.options.get( 'make-install-targets', 'install'),
+            '\n'
         )
 
         # configuration options
         self.configure_options = ' '.join(
             splitstrip(
-                self.options.get(
-                    'configure-options',
-                    '')
+                self.options.get( 'configure-options', '')
+            )
+        )
+        self.configure_options += ' '.join(
+            splitstrip(
+                self.options.get( 'extra_options', '')
             )
         )
         # conditionnaly add OS specifics patches.
         self.configure_options += ' %s' % (
-            self.options.get('configure-options-%s' % (
-                self.uname.lower()), '')
+            self.options.get('configure-options-%s' % (self.uname.lower()), '')
         )
 
         # path we will put in env. at build time
@@ -322,9 +236,7 @@ class MinitageCommonRecipe(object):
                        self.options['location']]
         self.pypath.extend(self.pypath)
         self.pypath.extend(
-            splitstrip(
-                self.options.get('pythonpath', '')
-            )
+            splitstrip(self.options.get('pythonpath', ''))
         )
 
         # tmp dir
@@ -403,23 +315,13 @@ class MinitageCommonRecipe(object):
         self.minitage_dependencies.extend(
             [os.path.abspath(os.path.join(
                 self.minitage_directory,
-                'dependencies',
-                s,
-                'parts',
-                'part'
+                'dependencies', s, 'parts', 'part'
             )) for s in splitstrip(
                 self.minitage_section.get('dependencies', '')
             ) + minibuild_dependencies ]
         )
 
-        self.minitage_eggs.extend(
-            [os.path.abspath(os.path.join(
-                self.minitage_directory,
-                'eggs', s, 'parts', self.site_packages,
-            )) for s in splitstrip(
-                self.minitage_section.get('eggs', '')
-            ) + minibuild_eggs]
-        )
+
 
         # sometime we install system libraries as eggs because they depend on
         # a particular python version !
@@ -434,6 +336,128 @@ class MinitageCommonRecipe(object):
             self.path.append(os.path.join(s, 'bin'))
             self.path.append(os.path.join(s, 'sbin'))
 
+        # Defining the python interpreter used to install python stuff.
+        # using the one defined in the key 'executable'
+        # fallback to sys.executable or
+        # python-2.4 if self.name = site-packages-2.4
+        # python-2.5 if self.name = site-packages-2.5
+        self.executable= None
+        if 'executable' in options:
+            for lsep in '.', '..':
+                if lsep in options['executable']:
+                    self.executable = os.path.abspath(options.get('executable').strip())
+                else:
+                    self.executable = options.get('executable').strip()
+        elif 'python' in options:
+            self.executable = self.buildout.get(
+                options['python'].strip(),
+                {}).get('executable', None)
+        elif 'python' in self.buildout:
+            self.executable = self.buildout.get(
+                self.buildout['buildout']['python'].strip(),
+                {}).get('executable', None)
+        if not self.executable:
+            # if we are an python package
+            # just get the right interpreter for us.
+            # and add ourselves to the deps
+            # to get the cflags/ldflags in env.
+            for pyver in core.PYTHON_VERSIONS:
+                if self.name == 'site-packages-%s' % pyver:
+                    interpreter_path = os.path.join(
+                        self.minitage_directory,
+                        'dependencies', 'python-%s' % pyver, 'parts',
+                        'part'
+                    )
+                    self.executable = os.path.join(
+                        interpreter_path, 'bin', 'python'
+                    )
+                    self.minitage_dependencies.append(interpreter_path)
+                    self.includes.append(
+                        os.path.join(
+                            interpreter_path,
+                            'include',
+                            'python%s' % pyver
+                        )
+                    )
+        # If we have not python selected yet, default to the current one
+        if not self.executable:
+            self.executable = self.buildout.get(
+                buildout.get('buildout', {}).get('python', '').strip(), {}
+                ).get('executable', sys.executable)
+
+        # if there is no '/' in the executalbe, just search for in the path
+        if not self.executable.startswith('/'):
+            self._set_path()
+            try:
+                self.executable = which(self.executable)
+            except IOError, e:
+                raise core.MinimergeError('Python executable '
+                                 'was not found !!!\n\n%s' % e)
+
+        # which python version are we using ?
+        self.executable_version = os.popen(
+            '%s -c "%s"' % (
+                self.executable ,
+                'import sys;print sys.version[:3]'
+            )
+        ).read().replace('\n', '')
+
+        # where is the python installed, we need it to filter later
+        # wrong site-packages picked up by setuptools envrionments scans
+        try:
+            self.executable_prefix = os.path.abspath(
+                    subprocess.Popen(
+                        [self.executable, '-c', 'import sys;print sys.prefix'],
+                        stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                        close_fds=True).stdout.read().replace('\n', '')
+                )
+        except:
+            # getting the path from the link, if we can:
+            try:
+                if not self.executable.endswith('/'):
+                    executable_directory = self.executable.split('/')[:-1]
+                    if executable_directory[-1] in ['bin', 'sbin']:
+                        level = -1
+                    else:
+                        level = None
+                    self.executable_prefix = '/'.join(executable_directory[:level])
+                else:
+                    raise core.MinimergeError('Your python executable seems to point to a directory!!!')
+            except:
+                raise
+
+        if not os.path.isdir(self.executable_prefix):
+            message = 'Python seems not to find its prefix : %s' % self.executable_prefix
+            self.logger.warning(message)
+
+        self.executable_lib = os.path.join(
+                        self.executable_prefix,
+                        'lib', 'python%s' % self.executable_version)
+
+        self.executable_site_packages = os.path.join(
+                        self.executable_prefix,
+                        'lib', 'python%s' % self.executable_version,
+                        'site-packages')
+
+        # site-packages defaults
+        self.site_packages = 'site-packages-%s' % self.executable_version
+        self.site_packages_path = self.options.get(
+            'site-packages',
+            os.path.join(
+                self.buildout['buildout']['directory'],
+                'parts',
+                self.site_packages)
+        )
+
+        self.minitage_eggs.extend(
+            [os.path.abspath(os.path.join(
+                self.minitage_directory,
+                'eggs', s, 'parts', self.site_packages,
+            )) for s in splitstrip(
+                self.minitage_section.get('eggs', '')
+            ) + minibuild_eggs]
+        )
+
         for s in self.minitage_eggs \
                  + [self.site_packages_path] \
                  + [self.buildout['buildout']['eggs-directory']] :
@@ -447,7 +471,6 @@ class MinitageCommonRecipe(object):
                     self.tmp_directory)
             )
             shutil.rmtree(self.tmp_directory)
-
 
     def _choose_configure(self, compile_dir):
         """configure magic to runne with
@@ -713,15 +736,15 @@ class MinitageCommonRecipe(object):
 
     def _unpack(self, fname, directory=None):
         """Unpack something"""
-        self.logger.info('Unpacking')
         if not directory:
             directory = self.tmp_directory
+        self.logger.info('Unpacking in %s.' % directory)
         unpack_f = IUnpackerFactory()
         u = unpack_f(fname)
         u.unpack(fname, directory)
 
     def _patch(self, directory, patch_cmd=None,
-               patch_options=None, patches =None):
+               patch_options=None, patches =None, download_dir=None):
         """Aplying patches in pwd directory."""
         if not patch_cmd:
             patch_cmd = self.patch_cmd
@@ -734,13 +757,14 @@ class MinitageCommonRecipe(object):
             cwd = os.getcwd()
             os.chdir(directory)
             for patch in patches:
+                fpatch = self._download(patch, destination=download_dir, cache=False)
                 system('%s -t %s < %s' %
                        (patch_cmd,
                         patch_options,
-                        patch),
+                        fpatch),
                        self.logger
                       )
-            os.chdir(cwd)
+                os.chdir(cwd)
 
     def update(self):
         pass
@@ -751,11 +775,13 @@ class MinitageCommonRecipe(object):
         See http://pypi.python.org/pypi/z3c.recipe.runscript for details.
         """
         cwd = os.getcwd()
+        hooked = False
         if destination:
             os.chdir(destination)
 
         if hook in self.options \
            and len(self.options[hook].strip()) > 0:
+            hooked = True
             self.logger.info('Executing %s' % hook)
             script = self.options[hook]
             filename, callable = script.split(':')
@@ -767,6 +793,7 @@ class MinitageCommonRecipe(object):
 
         if destination:
             os.chdir(cwd)
+        return hooked
 
     def _get_compil_dir(self, directory, filter=True):
         """Get the compilation directory after creation.

@@ -6,7 +6,7 @@ setupdir = os.path.abspath(
 os.chdir(setupdir)
 
 name='minitage.recipe'
-version = '0.31'
+version = '0.34'
 
 def read(rnames):
     return open(
@@ -18,10 +18,14 @@ setup(
     version=version,
     description="zc.buildout recipes to compile and install software or python packages and generate scripts.",
     long_description= (
-        read('README.txt')
-        + '\n' +
-        read('CHANGES.txt')
-        + '\n'
+#        read('README.txt')\
+#        + '\n'\
+#        + read('CHANGES.txt')\
+#        + '\n'\
+#        + read(*['src', 'minitage', 'recipe', 'tests', 'shared.txt'])\
+#        + '\n'\
+#        + read(*['src', 'minitage', 'recipe', 'tests', 'cmmi.txt'])\
+#        + '\n'\
     ),
     classifiers=[
         'Framework :: Buildout',
@@ -43,7 +47,8 @@ setup(
     install_requires = [
         'zc.buildout',
         'setuptools',
-        'minitage.core'
+        'minitage.core',
+        'iniparse',
     ],
     extras_require={'test': ['IPython', 'zope.testing', 'mocker']},
     #tests_require = ['zope.testing'],

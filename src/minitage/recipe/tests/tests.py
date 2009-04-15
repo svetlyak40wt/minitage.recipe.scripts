@@ -139,9 +139,6 @@ def doc_suite(test_dir, setUp=None, tearDown=None, globs=None):
         globs["p"] = os.path.dirname(bp)
         #globs["buildout"] = os.path.join(bp, 'buildout')
         globs["python"] = os.path.join(bp, 'py')
-    # make a virtualenv with our stuff installed in develop mode inside
-
-
     flags = (doctest.ELLIPSIS | doctest.NORMALIZE_WHITESPACE |
              doctest.REPORT_ONLY_FIRST_FAILURE)
 

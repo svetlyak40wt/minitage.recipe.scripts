@@ -49,6 +49,8 @@ class Recipe(scripts.Recipe):
 
         # install needed stuff and get according working set
         reqs, ws = self.working_set()
+        sreqs, ws = self.working_set()
+        reqs = [pkg_resources.Requirement.parse(r) for r in sreqs]
         env = pkg_resources.Environment(scan_paths, python = self.executable_version)
         required_dists = ws.resolve(reqs, env)
         for dist in required_dists:
@@ -81,6 +83,8 @@ wsgi_template = """\
 
 import sys
 sys.path[0:0] = [ '%(path)s', ]
+
+%(initialization)s
 
 from paste.deploy import loadapp
 application = loadapp("config:%(config)s")

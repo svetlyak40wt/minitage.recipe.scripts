@@ -2,6 +2,16 @@
 CHANGELOG
 =======================
 
+0.33->0.34
+===========
+
+    - Fix python executable computation
+
+0.32
+=====
+
+    - Documentation and tests release
+
 0.29
 ====
 

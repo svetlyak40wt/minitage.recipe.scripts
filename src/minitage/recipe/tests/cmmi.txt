@@ -1,52 +1,90 @@
-Tests for minitage.recipe;cmmi recipe
--------------------------------------------------------
+
+If you are inside a minitage environment, all the dependencies of your minibuild are put in the environment, that mean that CFLAGS, LDFLAGS, PKG_CONFIG_PATH, and so on are updated to reference your minibuild's dependencies.
+
+
+Tests & docs for minitage.recipe;cmmi recipe
+===============================================
+Abstract
+-----------------
+    - minitage.recipe:cmmi is a replacment fo ``zc.recipe.cmmi``.
+    - It intends to do the *configure && make && make install* dance with hooks where you can do (in python) specific stuff at each stage of the build cursus.
+    - With this recipe, if the destination directory exists, we only remove it
+      when we can sucessfully install something, unless that we never touch to it,
+      or it is a bug.
+
+Specific options
+-----------------
+A hook callable takes a buildout and an option part as paramaters.
+A hook is in the form /path/to/hook:CALLABLE::
+
+        myhook=${buildout:directory}/toto.py:foo
+
+where we have toto.py::
+
+        def foo(options, buildout):
+            return 'Hourray'
+
+    - pre-unpack-hook
+        hook executed before the unpack dance
+    - post-unpack-hook
+        hook executed after the unpack dance
+    - post-unpack-hook
+        hook executed after the unpack dance
+    - pre-configure-hook
+        hook executed before the configure is run
+    - pre-make-hook
+        hook executed before the first make target is run
+    - post-build-hook
+        hook executed after the build make targets are done
+    - pending-make-install
+        hook executed after the make and before the make install is done
+    - post-make-hook
+        hook executed after the make install is done
+    - noconfigure
+        do not run ./configure
+    - noinstall
+        do not run make install
 
 Let's create a buildout configuration file::
 
-    >>> data = """
-    ... [buildout]
-    ... parts =
-    ...     part
-    ... extensions = buildout.minitagificator
-    ... [part]
-    ... recipe=minitage.recipe.cmmi
-    ... on-install=true
-    ... on-update=true
-    ... cmds=ls
-    ... [egg]
-    ... recipe=zc.recipe.egg:eggs
-    ... eggs=zc.buildout
-    ... [script]
-    ... recipe=zc.recipe.egg:scripts
-    ... eggs=zc.buildout
-    ... """
+
     >>> rmdir(tempdir, 'buildout.test')
     >>> cd(tempdir)
     >>> sh('mkdir buildout.test')
     mkdir buildout.test
     <BLANKLINE>
     >>> cd('buildout.test')
-    >>> touch('buildout.cfg', data=data)
-    >>> ls('.')
-    buildout.cfg
-
-Run the buildout and see the patch in action :=)::
-
     >>> a= [mkdir(d) for d in ('eggs', 'develop-eggs', 'bin', 'src')]
     >>> install_develop_eggs(['minitage.recipe'])
-    >>> install_eggs_from_pathes(['minitage.recipe'], sys.path)
-    >>> buildout('bootstrap')
+    >>> install_eggs_from_pathes(['zc.buildout'], sys.path)
+    >>> touch('buildout.cfg')
+    >>> import pdb;pdb.set_trace()  ## Breakpoint ##
+    >>> sh('buildout bootstrap')
     Creating directory '/tmp/buildout.test/parts'.
     Generated script '/tmp/buildout.test/bin/buildout'.
-    >>> sh('bin/buildout install part')
-    bin/buildout install part
-    Getting distribution for 'iw.recipe.cmd'.
-    Got iw.recipe.cmd ...
-    minitage.recipe: Picked: zc.buildout = ...
-    minitage.recipe: Picked: setuptools = ...
-    Unused options for buildout: 'download-directory'.
-    Installing part.
-    Unused options for part: 'cmds' 'on-update' 'on-install'.
-    <BLANKLINE>
+    >>> import pdb;pdb.set_trace()  ## Breakpoint ##
+
+This first buildout does nothing except print us what we want. We have desactivated the configure and make dance!
+This is to show how to use hooks at each stage of the compilation
+
+    >>> touch('buildout.cfg',
+    ... """
+    ... [buildout]
+    ... parts =
+    ...     part
+    ... [part]
+    ... recipe=minitage.recipe.cmmi
+    ... noconfigure = true
+    ... nomake = true
+    ... """)
+    >>> sh('bin/buildout -vvvvv install part')
+
+This second one aimes to show us the patch capababilities
+
+This third one show us how to give options and control the configure program
+
+This third one show us how to play with make targets
+
+
 
 
