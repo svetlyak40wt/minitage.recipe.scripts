@@ -13,6 +13,10 @@
 
 import os
 import shutil
+try:
+    from hashlib import sha1
+except ImportError: # Python < 2.5
+    from sha import new as sha1
 
 from minitage.recipe import common
 from minitage.core import core
@@ -21,8 +25,18 @@ class Recipe(common.MinitageCommonRecipe):
     """zc.buildout recipe for compiling and installing software"""
 
     def __init__(self, buildout, name, options):
+
         common.MinitageCommonRecipe.__init__(self,
                                              buildout, name, options)
+        # handle share mode, compatibility with zc.recipe.cmmi
+        self.shared = False
+        self.shared_top = os.path.join(self.download_cache, 'cmmi')
+        if not os.path.isdir(self.shared_top):
+                os.makedirs(self.shared_top)
+        if 'shared' in self.options:
+            self.shared = os.path.join(self.shared_top,
+                         self._state_hash())
+            self.prefix = options['location'] = self.shared
 
     def install(self):
         """Install the recipe."""
@@ -70,6 +84,9 @@ class Recipe(common.MinitageCommonRecipe):
             # preconfigure hook
             self._call_hook('pre-configure-hook')
 
+            # autogen, maybe
+            self._autogen()
+
             # run configure
             self._configure(self.configure)
 
@@ -98,6 +115,7 @@ class Recipe(common.MinitageCommonRecipe):
             os.chdir(cwd)
             self.logger.info('Completed install.')
         except Exception, e:
+            raise
             self.logger.error('Compilation error. '
                               'The package is left as is at %s where '
                       'you can inspect what went wrong' % self.tmp_directory)
@@ -110,5 +128,18 @@ class Recipe(common.MinitageCommonRecipe):
         """Update the recipe.
         wrapper to install"""
         self.install()
+
+    def _state_hash(self):
+        # hash of our configuration state, so that e.g. different
+        # ./configure options will get a different build directory
+        env = ''.join(['%s%s' % (key, value) for key, value
+                       in os.environ.items()])
+        state = [self.url,
+                 self.configure_options,
+                 self.autogen,
+                 ''.join(self.patches),
+                 self.patch_options,
+                 env]
+        return sha1(''.join(state)).hexdigest()
 
 

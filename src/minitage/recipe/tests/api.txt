@@ -1,0 +1,24 @@
+
+===============================================
+minitage.recipe API tests
+===============================================
+
+The divide url function
+------------------------------
+
+    - If you dont precise the directory, its the basename of the url::
+
+        >>> divide_url ('http://foo/bar|svn|666||--ignore-externals')
+        ('http://foo/bar', 'svn', '666', 'http.foo.bar', '--ignore-externals')
+
+    - Static as a default::
+
+        >>> divide_url ('')
+        ('', 'static', '', '', '')
+
+    - arguements can be optionnal::
+
+        >>> divide_url ('http://foo/bar')
+        ('http://foo/bar', 'static', '', 'http.foo.bar', '')
+
+

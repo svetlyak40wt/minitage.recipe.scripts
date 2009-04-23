@@ -27,6 +27,8 @@ import subprocess
 import py_compile
 import logging
 
+from ConfigParser import NoOptionError
+import iniparse as ConfigParser
 import pkg_resources
 import setuptools.archive_util
 from setuptools.command import easy_install
@@ -37,6 +39,21 @@ from minitage.core.fetchers.interfaces import IFetcherFactory
 from minitage.core import core
 from minitage.core.common import splitstrip
 
+PATCH_MARKER = 'ZMinitagePatched'
+orig_versions_re = re.compile('-*%s.*' % PATCH_MARKER, re.U|re.S)
+
+def get_orig_version(version):
+    if not version: version = ''
+    return orig_versions_re.sub('', version)
+
+def get_requirement_version(requirement):
+    patched_egg, version = False, None
+    for spec in requirement.specs:
+        for item in spec:
+            if PATCH_MARKER in item:
+                version = item
+                patched_egg = True
+    return version, patched_egg
 
 def merge_extras(a, b):
     a.extras += b.extras
@@ -67,10 +84,6 @@ def redo_pyc(egg, executable=sys.executable, environ=os.environ):
     for dirpath in files:
         for filename in tuple(set(files[dirpath])):
             filepath = os.path.join(dirpath, filename)
-            #if not (os.path.exists(filepath+'c')
-            #        or os.path.exists(filepath+'o')):
-            #    # If it wasn't compiled, it may not be compilable
-            #    continue
             # OK, it looks like we should try to compile.
             # Remove old files.
             for suffix in 'co':
@@ -106,15 +119,22 @@ class Recipe(common.MinitageCommonRecipe):
             os.path.join(self.download_cache, 'eggs')
         )
 
+        if not os.path.isdir(self.download_cache):
+            os.makedirs(self.download_cache)
+
         self.extra_paths = [
             os.path.join(buildout['buildout']['directory'], p.strip())
             for p in options.get('extra-paths', '').split('\n')
             if p.strip()
             ]
+
         self.versions = buildout.get(
             buildout['buildout'].get('versions', '').strip(),
             {}
         )
+        self.buildout_versions = buildout['buildout'].get('versions', '').strip()
+        if not self.buildout_versions in buildout:
+            self.buildout_versions = None
         # compatibility with zc.recipe.egg:
         relative_paths = options.get(
             'relative-paths',
@@ -125,7 +145,6 @@ class Recipe(common.MinitageCommonRecipe):
             self._relative_paths = options['buildout-directory']
         else:
             self._relative_paths = ''
-            assert relative_paths == 'false'
         # end compat
 
         # caches
@@ -163,10 +182,11 @@ class Recipe(common.MinitageCommonRecipe):
         if self.options.get('zip-safe', 'true'):
             self.zip_safe = True
 
-        self._env = pkg_resources.Environment(
-            self.eggs_caches,
-            python=self.executable_version
-        )
+        # sharing env with Installer for performance optimization
+        #self._env = pkg_resources.Environment(
+        #    self.eggs_caches,
+        #    python=self.executable_version
+        #)
 
         # monkey patch zc.buildout loggging
         self.logger.setLevel(
@@ -193,9 +213,14 @@ class Recipe(common.MinitageCommonRecipe):
                                          self.buildout.get('allow-hosts', {})
                                          ),
         )
+        # FORCING NEWEST MODE !!! see Installer code...
+        self.inst._newest = self.buildout.newest
         self._dest= os.path.abspath(
             self.buildout['buildout']['eggs-directory']
         )
+
+        # intiatiate environement cache
+        self.scan()
 
     def update(self):
         """update."""
@@ -257,8 +282,9 @@ class Recipe(common.MinitageCommonRecipe):
         if not dest in self.eggs_caches:
             self.eggs_caches.append(dest)
 
-        env = pkg_resources.Environment(self.eggs_caches,
-                                        python=self.executable_version)
+        # old code, keeping atm
+        #env = pkg_resources.Environment(self.eggs_caches,
+        #                                python=self.executable_version)
 
         return ['%s' % r for r in requirements], working_set
 
@@ -278,7 +304,7 @@ class Recipe(common.MinitageCommonRecipe):
         if not urls:
             urls = self.urls
         for i, url in enumerate(urls):
-            fname = self._download(url=url, scm = self.scm)
+            fname = self._download(url=url)
             dists = []
             # if it is a repo, making a local copy
             # and scan its distro
@@ -336,7 +362,7 @@ class Recipe(common.MinitageCommonRecipe):
                         dist.project_name
                     )
                 # force env rescanning if egg was not there at init.
-                self.inst._env.scan([dest])
+                self.scan([dest])
                 sdist, savail = None, None
                 try:
                     sdist, savail, _ = self._satisfied(requirement, working_set)
@@ -362,7 +388,13 @@ class Recipe(common.MinitageCommonRecipe):
                 # for buildout to use it !
                 self._pin_version(dist.project_name, dist.version)
                 self.versions[dist.project_name] = dist.version
+                self.add_dist(dist)
         return requirements, working_set
+
+    def scan(self, scanpaths=None):
+        if not scanpaths:
+            scanpaths = self.eggs_caches
+        self.inst._env.scan(scanpaths)
 
     def _search_sdist(self, requirement, working_set):
         env = pkg_resources.Environment(
@@ -390,10 +422,35 @@ class Recipe(common.MinitageCommonRecipe):
         return avail
 
     def _satisfied(self, requirement, working_set):
+        # be sure to honnour versions restrictions
+        requirement = self._constrain_requirement(requirement)
+        # if we are in online mode, trying to get the latest version available
+        candidate = None
         # first try with what we have in binary form
-        # force env rescanning if egg was not there at init.
-        self.inst._env.scan([self._dest])
-        dist, avail = self.inst._satisfied(requirement)
+        try:
+            dist, avail = self.inst._satisfied(requirement)
+        except zc.buildout.easy_install.MissingDistribution:
+            # force env rescanning if egg was not there at init.
+            self.scan([self._dest])
+            dist, avail = self.inst._satisfied(requirement)
+        search_new = self.buildout.newest
+        if dist:
+            if dist.precedence == pkg_resources.DEVELOP_DIST:
+                search_new = False
+        # do not search newer when we already have '==' in requirement :)
+        # neweer thab ==1.0 ==> 1.0 and searching is just a no-op!
+        if '==' in '%s' % requirement:
+            search_new = False
+        if search_new:
+            candidate = self.inst._obtain(requirement)
+        if candidate:
+            if avail:
+                if candidate.version > avail.version:
+                    avail = candidate
+            if dist:
+                if candidate.version > dist.version:
+                    avail = candidate
+                    dist = None
         if not dist:
             if avail is None:
                 # try to found a sdist, but do not stop there,
@@ -404,109 +461,99 @@ class Recipe(common.MinitageCommonRecipe):
                     # just mark the dist as missing.
                     avail = None
 
-        #there we have dist or avail setted, weither the egg is alredy installed
-        project, v, patches, version  = None, None, [], None
-        if avail:
-            project = avail
-        else:
-            project = requirement
-            version = 'notset'
+        # there we have dist or avail setted, weither the egg is alredy installed
+        # both can be null is nothing is installed or downloaded right now.
+        # In this case, we just have the requirement availlabke
+        v, patched_egg = get_requirement_version(requirement)
+        patches = []
+        # Try to get the possibles patch for the project if this is the relevant
+        # v can be wrong atm,if the requirement is not yet pinned to the patched
+        # version !!!
+        v, _, _, patches, _ = self._get_dist_patches(requirement.project_name, v)
 
-        # try to get the possibles patch for the project if this is the relevant
-        v, _, _, patches, _ = self._get_dist_patches(project)
+        # leads to bugs in buildout behaviour if we read things we didnt have to ;'(
+        # if this is a minitage patched egg, there is a chance that the
+        # part which build the egg was not built yet.
+        # We will try to find and run it!
+        #if (not patches) and patched_egg:
+        #    for spart in self.buildout:
+        #        part = self.buildout[spart]
+        #        if 'recipe' in part:
+        #            for option in part:
+        #                if option.startswith(requirement.project_name) \
+        #                and ('patch' in option):
+        #                    v, _, _, patches, _ = self._get_dist_patches(
+        #                        requirement.project_name,
+        #                        v,
+        #                        part)
+        #                    # we found the part with the set of patches  :D
+        #                    if patches:
+        #                        self.logger.info(
+        #                            "Althought [%s] doesn't provide "
+        #                            "appropriate patches for %s, we found "
+        #                            "[%s] which provide them, "
+        #                            "running it!" %(
+        #                                self.name, requirement, part.name
+        #                            )
+        #                        )
+        #                        self.buildout._install(part.name)
+        #                        break
 
-        # if we have patches, look if the egg is already there
-        from_other_part = False
-        if not dist and (not len(patches)):
-            # if this is a minitage patched egg, there is a chance that the
-            # part which build the egg was not built yet.
-            # We will try to find and run it!
-            patched_egg = False
-            for spec in requirement.specs:
-                version = spec
-                if 'ZMinitagePatched' in spec:
-                    patched_egg = True
-                else:
-                    for item in spec:
-                        if 'ZMinitagePatched' in item:
-                            version = item
-                            patched_egg = True
-                if patched_egg:
-                    for spart in self.buildout:
-                        part = self.buildout[spart]
-                        if 'recipe' in part:
-                            for option in part:
-                                if option.startswith(requirement.project_name) \
-                                and ('patch' in option):
-                                    orig_version = re.sub('-ZMinitage.*', '', version)
-                                    v, _, _, patches, _ = self._get_dist_patches(
-                                        requirement, part, orig_version)
-                                    # we found the part with the set of patches  :D
-                                    if v == version:
-                                        from_other_part = True
-                                        self.buildout._install(part.name)
-                                        break
-
-        self.inst._env.scan([self._dest])
         if len(patches):
-            # now, in the 2 cases: we ran another part or the part itself.
-            # But in all cases, we have feeded our patches list !
-            # But we may not have installed yet the egg!
-            if avail is None:
-                # do we come from elsewhere, in the contrary,
-                # We are in the case where install the egg
-                if not from_other_part:
-                    try:
-                        avail = self._search_sdist(requirement, working_set)
-                    except zc.buildout.easy_install.MissingDistribution:
-                        # if this is a minitage patched egg, there is a chance that the
-                        # part which build the egg was not built yet.
-                        # in this case, we try to find the egg without the patched
-                        # version bits.
-                        #
-                        # The other case is when you have already fixed the
-                        # version on the buildout, but you dont have already the
-                        # egg, its just to be cool with users as we know how to
-                        # do this egg, anyhow :)
-                        patched_egg = False
-                        for spec in requirement.specs:
-                            version = spec
-                            if 'ZMinitagePatched' in spec:
-                                patched_egg = True
-                            else:
-                                for item in spec:
-                                    if 'ZMinitagePatched' in item:
-                                        version = item
-                                        patched_egg = True
-                        if patched_egg:
-                            orig_version = re.sub('-ZMinitage.*', '', version)
-                            requirement = pkg_resources.Requirement.parse(
-                                "%s==%s" % (
-                                    requirement.project_name, orig_version
-                                )
-                            )
-                        avail = self._search_sdist(requirement, working_set)
-                        v = orig_version + v
-                    # forge the patched requirement representation
-                    requirement = pkg_resources.Requirement.parse(
-                        "%s==%s" % (
-                            requirement.project_name, v
-                        )
-                    )
+            # forge the patched requirement reporesentation
+            # if we cant determine the version from the requirement, it was not
+            # already patched, we must have a distribution or an available
+            # source distribution to get the version from
+            # Note that from the distribution, it canbe alraedy patched ;)
+            if not get_orig_version(v):
+                for project in dist, avail:
+                    if project:
+                        if v in project.version:
+                            v = project.version
+                        else:
+                            v = "%s-%s" % (project.version, v)
+                            break
+            requirement = pkg_resources.Requirement.parse(
+                "%s==%s" % (
+                    requirement.project_name, v
+                )
+            )
             # Do we have a compiled distribution of the egg yet?
             dist, pavail = self.inst._satisfied(requirement)
             if dist:
+                v = dist.version
                 avail = None
-        # mark buildout, recipes and installers  to use our specific egg!
+            # now, in the 2 cases: we ran another part or the part itself.
+            # But in all cases, we have feeded our patches list !
+            # But we may not have installed yet the egg!
+            elif avail is None:
+                # do we come from elsewhere, in the contrary,
+                # We are in the case where install the egg
+                try:
+                    avail = self._search_sdist(requirement,
+                                               working_set)
+                except zc.buildout.easy_install.MissingDistribution:
+                    # if this is a minitage patched egg, there is a chance that the
+                    # part which build the egg was not built yet.
+                    # in this case, we try to find the egg without the patched
+                    # version bits.
+                    # The other case is when you have already fixed the
+                    # version on the buildout, but you dont have already the
+                    # egg, its just to be cool with users as we know how to
+                    # do this egg, anyhow :)
+                    version, patched_egg = get_requirement_version(requirement)
+                    if patched_egg:
+                        requirement = pkg_resources.Requirement.parse(
+                            "%s==%s" % (
+                                requirement.project_name, get_orig_version(v)
+                            )
+                        )
+                        avail = self._search_sdist(requirement, working_set)
+        # Mark buildout, recipes and installers to use our specific egg!
+        # Even, if we have already installed, in case user or something else
+        # removed it!
         if v and patches:
-            old_v = self.buildout['versions'].get(requirement.project_name)
-            # regenerate the buildout to insert and pin the patchedversion.
-            if (dist or avail) and (old_v != v):
-                written_version = v
-                if dist:
-                    written_version = dist.version
-                self._pin_version(requirement.project_name, written_version)
-            self.versions[requirement.project_name] = v
+            self._pin_version(requirement.project_name, v)
         # We may have not found the distribution
         if (not dist) and (not avail):
             raise zc.buildout.easy_install.MissingDistribution(
@@ -514,38 +561,67 @@ class Recipe(common.MinitageCommonRecipe):
         return dist, avail, requirement
 
     def _pin_version(self, name, version):
-        cfg = os.path.join(self.buildout._buildout_dir, 'buildout.cfg')
+        sysargv = sys.argv[:]
+        fconfig = 'buildout.cfg'
+        # determine which buildout config has been run
+        while sysargv:
+            try:
+                arg = sysargv.pop(0)
+                if arg == '-c':
+                    fconfig = sysargv.pop()
+                    break
+            except IndexError:
+                fconfig = 'buildout.cfg'
+        cfg = os.path.join(self.buildout._buildout_dir, fconfig)
+        # patch runtime objects to fix version
+        if self.buildout_versions:
+            self.buildout[self.buildout_versions][name] = version
+        self.versions[name] = version
+        self.inst._versions[name] = version
         requirement = pkg_resources.Requirement.parse(
             '%s==%s' % (name, version)
         )
         if not os.path.exists(cfg):
             self.logger.error("""
 
-it seems you are not using buildout.cfg as configuration file, as we have no mean to determine the buldout config file at runtime, you ll have to fix the version your self by adding : \n
+It seems you are not using buildout.cfg as configuration file, as we have no mean to determine the buldout config file at runtime, you ll have to fix the version your self by adding : \n
 [buildout]
 extends = customversions.cfg
 """)
             cfg = os.path.join(self.buildout._buildout_dir, 'customversions.cfg')
 
         versions_part = self.buildout.get('buildout', {}).get('versions', 'versions')
-        import iniparse as ConfigParser
         config = ConfigParser.ConfigParser()
         try:
-            self.logger.info('Pinning custom egg version in buildout, trying to write the configuration')
+            self.logger.debug('Pinning custom egg version in buildout, trying to write the configuration')
             config.read(cfg)
+            if not config.has_section('buildout'):
+                config.add_section('buildout')
+            config.set('buildout', 'versions', versions_part)
             if not config.has_section(versions_part):
                 config.add_section(versions_part)
-            config.set(versions_part, requirement.project_name, version)
-            backup_base = os.path.join(self.buildout._buildout_dir,
-                                  'buildout.cfg.before.fixed_version.bak')
-            index = 0
-            backup = backup_base
-            while os.path.exists(backup):
-                index += 1
-                backup = '%s.%s' % (backup_base, index)
-            self.logger.info('CREATING buildout backup in %s' % backup)
-            shutil.copy2(cfg, backup)
-            config.write(open(cfg, 'w'))
+
+            existing_version = None
+            try:
+                existing_version = config.get(versions_part, name).strip()
+            except NoOptionError:
+                pass
+
+            # only if version changed
+            if existing_version != version:
+                config.set(versions_part, requirement.project_name, version)
+                backup_base = os.path.join(self.buildout._buildout_dir,
+                                      '%s.before.fixed_version.bak' % fconfig)
+                index = 0
+                backup = backup_base
+                while os.path.exists(backup):
+                    index += 1
+                    backup = '%s.%s' % (backup_base, index)
+                self.logger.debug('CREATING buildout backup in %s' % backup)
+                shutil.copy2(cfg, backup)
+                config.write(open(cfg, 'w'))
+            else:
+                self.logger.debug('Version already pinned, nothing has been wroten.')
         except Exception, e:
             self.logger.error('Cant pin the specific versions for %s\n%s' % (requirement, e))
 
@@ -565,6 +641,9 @@ extends = customversions.cfg
                 r = merge_specs(r, requirement)
             constrained_requirements[r.project_name] = r
         return constrained_requirements.values()
+
+    def _constrain_requirement(self, requirement, dep=None):
+        return self._constrain([requirement], dep)[0]
 
     def filter_already_installed_requirents(self,
                                             requirements,
@@ -631,6 +710,9 @@ extends = customversions.cfg
             self.logger.debug('All egg dependencies seem to be installed!')
         return working_set
 
+    def add_dist(self, dist):
+        self.inst._env.add(dist)
+
     def _install_requirements(self, reqs, dest,
                               working_set=None,
                               already_installed_dependencies=None,
@@ -667,9 +749,13 @@ extends = customversions.cfg
                                                       working_set,
                                                       already_installed_dependencies)
                     rname = requirement.project_name
+                    # mark the distribution as installed
                     already_installed_dependencies[rname] = pkg_resources.Requirement.parse(
                         '%s==%s' % (dist.project_name, dist.version)
                     )
+                    # advertise environements of our new dist
+                    self.add_dist(dist)
+
                 # honouring extra requirements
                 if requirement.extras:
                     _, working_set = self._install_requirements(
@@ -730,11 +816,10 @@ extends = customversions.cfg
             os.makedirs(tmp)
         # maybe extract time
         location = dist.location
-        if not os.path.isdir(location):
-            if not location.endswith('.egg'):
-                location = tempfile.mkdtemp()
-                self._unpack(dist.location, location)
-                location = self._get_compil_dir(location)
+        if not location.endswith('.egg'):
+            location = tempfile.mkdtemp()
+            self._unpack(dist.location, location)
+            location = self._get_compil_dir(location)
         sub_prefix = self.options.get(
             '%s-build-dir' % ( dist.project_name.lower()),
             None
@@ -905,8 +990,8 @@ extends = customversions.cfg
 
             rdist = result[0]
         if not rdist:
-            self._env.scan(self.eggs_caches)
-            rdist = self._env.best_match(dist.as_requirement(), working_set)
+            self.scan()
+            rdist = self.inst._env.best_match(dist.as_requirement(), working_set)
         self.logger.debug("Got %s.", rdist)
         return rdist
 
@@ -964,6 +1049,7 @@ extends = customversions.cfg
                     raise core.MinimergeError('easy install '
                                               'failed !')
             except Exception, e:
+                import pdb;pdb.set_trace()  ## Breakpoint ##
                 raise core.MinimergeError(
                     'PythonPackage via easy_install '
                     'Install failed !\n%s' % e
@@ -995,22 +1081,11 @@ extends = customversions.cfg
                 link = os.path.dirname(link)
             self.inst._index.add_find_links([link])
         source = self.inst._index.obtain(requirement).location
-        if not source.startswith('/'):
-            # download to cache/FIRSTLETTER/Archive
-            filename = self._download(
-                source,
-                self.download_cache,
-            )
-        # or we copy the dist in a temp directory for building it
-        else:
-            filename = os.path.join(
-                self.tmp_directory,
-                os.path.basename(source)
-            )
-            if os.path.isdir(source):
-                shutil.copytree(source, filename)
-            else:
-                shutil.copy(source, filename)
+        # download to cache/FIRSTLETTER/Archive
+        filename = self._download(
+            url=source,
+            destination=self.download_cache,
+        )
         dist = avail.clone(location=filename)
 
         if dist is None:
@@ -1019,47 +1094,47 @@ extends = customversions.cfg
 
         return dist
 
-    def _get_dist_patches(self, dist, options=None, version=None):
+    def _get_dist_patches(self, name, version, options=None):
         """Get the patches for a distribution.
         returns a tuple
         patched_version_str, patch_cmd, patch_options, patches_list
         """
+        if not version:
+            version = ''
+        # remove the minitage patch computation as we are rebuilding it!
+        version = get_orig_version(version)
         if not options:
             options = self.options
         # patch for eggs are based on the project_name
         patch_cmd = options.get(
-            '%s-patch-binary' % dist.project_name,
+            '%s-patch-binary' % name,
             'patch'
         ).strip()
 
         patch_options = ' '.join(
             options.get(
-                '%s-patch-options' % dist.project_name, '-Np0'
+                '%s-patch-options' % name, '-Np0'
             ).split()
         )
         patches = options.get(
-            '%s-patches' % dist.project_name,
+            '%s-patches' % name,
             '').split()
         # conditionnaly add OS specifics patches.
         patches.extend(
             splitstrip(
                 options.get(
-                    '%s-%s-patches' % (dist.project_name,
+                    '%s-%s-patches' % (name,
                                        self.uname.lower()),
                     ''
                 )
             )
         )
-        if not version:
-            try:
-                version = dist.version
-            except:
-                version = ''
+
         additionnal = ''
         if len(patches):
             # this will make this distribution, the newer one!for this release
             # number
-            additionnal = 'ZMinitagePatched'
+            additionnal = PATCH_MARKER
             separator = 'IAMATEXTSEPARATORSTRING'
             for patch in patches:
                 patch = patch.replace('.patch', '')
@@ -1073,17 +1148,19 @@ extends = customversions.cfg
                     patch_name = patch_name.replace(s, separator)
                 forged_name = ''
                 for part in patch_name.split(separator):
-                    name=part
+                    fname=part
                     if len(part)>1:
-                        name = '%s%s' % (part[0].upper(), part[1:])
-                    forged_name += name
+                        fname = '%s%s' % (part[0].upper(), part[1:])
+                    forged_name += fname
                 additionnal = '%s-%s' % (additionnal, forged_name)
-            version += "-%s" % additionnal
+            if version:
+                version += "-%s" % additionnal
+            else:
+                version = additionnal
         return version, patch_cmd, patch_options, patches, additionnal
 
-
     def _patch(self, location, dist):
-        version, patch_cmd, patch_options, patches, additionnal = self._get_dist_patches(dist)
+        version, patch_cmd, patch_options, patches, additionnal = self._get_dist_patches(dist.project_name, dist.version)
         # not patched ?
         if len(patches):
             common. MinitageCommonRecipe._patch(
@@ -1101,14 +1178,19 @@ extends = customversions.cfg
         return bool(len(patches)), dist
 
     def _sanitizeenv(self, ws):
-        """Get the env. right to compile."""
-        # use the common nice functions to make our environement convenient to
-        # build packages with dependencies
+        """Get the env.in the right way to compile.
+        Only the pypath may vary at each iteration, we zap the rest."""
+        # get the working set into the env.
         self._set_py_path(ws)
-        self._set_path()
-        self._set_pkgconfigpath()
-        self._set_compilation_flags()
-        if self.uname == 'darwin':
-            os.environ['MACOSX_DEPLOYMENT_TARGET'] = '10.5'
+        # use the common nice functions to
+        # make our environement convenient to
+        # build packages with dependencies
+        if getattr(self, 'unsanitized', True):
+            self._set_path()
+            self._set_pkgconfigpath()
+            self._set_compilation_flags()
+            if self.uname == 'darwin':
+                os.environ['MACOSX_DEPLOYMENT_TARGET'] = '10.5'
+            setattr(self, 'unsanitized', False)
 
 # vim:set et sts=4 ts=4 tw=80:

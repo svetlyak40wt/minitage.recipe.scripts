@@ -24,6 +24,7 @@ import pkg_resources
 import zc.buildout.easy_install
 
 from minitage.recipe import egg
+from minitage.core.common import get_from_cache, system, splitstrip
 parse_entry_point = re.compile(
         '([^=]+)=(\w+(?:[.]\w+)*):(\w+(?:[.]\w+)*)$'
         ).match
@@ -35,6 +36,15 @@ class Recipe(egg.Recipe):
     def __init__(self, buildout, name, options):
         egg.Recipe.__init__(self,
                             buildout, name, options)
+        self.not_filtered = []
+        self.arguments = self.options.get('arguments', '')
+        self.zap = splitstrip(self.options.get('zap', ''))
+        self.initialization = self.options.get('initialization', '')
+        self.options_scripts = self.options.get('scripts', '')
+        self.entry_points_options = self.options.get('entry-points', '').strip()
+        self.interpreter = self.options.get('interpreter', '').strip()
+        self.bin = self.buildout['buildout'].get('bin-directory',
+                                                 os.path.join(os.getcwd(), 'bin'))
         if self.extra_paths:
             self.extra_paths = [p for p in self.extra_paths if os.path.exists(p)]
             options['extra-paths'] = '\n'.join(self.extra_paths)
@@ -44,15 +54,42 @@ class Recipe(egg.Recipe):
     def update(self):
         return self.install()
 
+    def filter(self, dist, name,
+               entry_points_options, arguments,
+               console_scripts):
+        """
+        Filter script creation or not.
+        Think that the recipe is also used by minitagificator and we patch zc.buildout.easy_install.Installer.
+        We may install everything including buildout itself, with an incopatible python version.
+        So, we must take care with a robust filter mecanism!
+        """
+        # never touch to buildout script if it s not explicit!
+        if name in ['zc.buildout', 'buildout']:
+            if ('buildout' in console_scripts) \
+               or ('zc.buildout' in console_scripts):
+                return True
+            else:
+                return False
+
+        if not (name in self.zap):
+            if (
+                ((not entry_points_options)
+                 and (not arguments)
+                 and (not ('scripts' in self.options)))
+                or (name in console_scripts)
+                or (dist.project_name in console_scripts)
+            ):
+                return True
+        return False
+
     def install(self, working_set=None):
         """installs an egg
         """
-
         self.logger.info('Installing console scripts.')
-        arguments = self.options.get('arguments', '')
+        arguments = self.arguments
         # install console scripts
         installed_scripts, install_paths = {},[]
-        bin = self.buildout['buildout']['bin-directory']
+        bin = self.bin
         sitepackages = re.sub('bin.*',
                               'lib/python%s/site-packages' % self.executable_version,
                                self.executable)
@@ -61,13 +98,15 @@ class Recipe(egg.Recipe):
                       sitepackages]  + self.extra_paths
         entry_points = []
         # parse script key
-        scripts = self.options.get('scripts', '')
+        scripts = self.options_scripts
+        entry_points_options = self.entry_points_options
         if isinstance(scripts, str):
-            scripts = scripts.split()
+            scripts = scripts.split('\n')
             scripts = dict([
                 ('=' in s) and s.split('=', 1) or (s, s)
-                for s in scripts
+                for s in scripts if s
                 ])
+        console_scripts = scripts.keys()
 
         # install needed stuff and get according working set
         sreqs, ws = self.working_set(working_set=working_set)
@@ -77,36 +116,42 @@ class Recipe(egg.Recipe):
         for dist in required_dists:
             if not dist in ws:
                 ws.add(dist)
-        pypath = [p for p in ws.entries+self.extra_paths if os.path.exists(p)]
+        pypath = [os.path.abspath(p)
+                  for p in ws.entries+self.extra_paths
+                  if os.path.exists(p)]
         rpypath, rsetup = zc.buildout.easy_install._relative_path_and_setup(
-            os.path.join(self._dest, 'toto'),
+            os.path.join(self.bin, 'i_will_be_a_script'),
             pypath,
             self._relative_paths
         )
-
         template_vars = {'python': self.executable,
                          'path': rpypath,
                          'rsetup': rsetup,
                          'arguments': arguments,
-                         'initialization': self.options.get('initialization', ''),}
-
+                         'initialization': self.initialization,}
 
         # parse entry points key
-        for s in self.options.get('entry-points', '').split():
+        for s in [item
+                  for item in entry_points_options.split()
+                  if item]:
             if s.strip():
                 parsed = self.parse_entry_point(s)
                 if not parsed:
                     logging.getLogger(self.name).error(
                         "Cannot parse the entry point %s.", s)
                     raise zc.buildout.UserError("Invalid entry point")
-                entry_points.append(parsed.groups())
+                entry = parsed.groups()
+                entry_points.append(entry)
+                scripts[entry[0]] = entry[0]
 
         # scan eggs for entry point keys
         for dist in ws:
+            #if 'ZODB3' in dist.project_name:
+            #    import pdb;pdb.set_trace()  ## Breakpoint ##
             for name in pkg_resources.get_entry_map(dist, 'console_scripts'):
-                if not (arguments and not scripts) \
-                   or (name in scripts) \
-                   or (dist.project_name in scripts):
+                if self.filter(dist, name,
+                               entry_points_options, arguments,
+                               console_scripts):
                     scripts.setdefault(name, name)
                     entry_point = dist.get_entry_info('console_scripts', name)
                     entry_points.append(
@@ -115,7 +160,7 @@ class Recipe(egg.Recipe):
                         )
 
         # generate interpreter
-        interpreter = self.options.get('interpreter', '').strip()
+        interpreter = self.interpreter
         if interpreter:
             inst_script = os.path.join(bin, interpreter)
             installed_scripts[interpreter] = inst_script, py_script_template % template_vars
@@ -123,18 +168,25 @@ class Recipe(egg.Recipe):
         # generate console entry pointts
         for name, module_name, attrs in entry_points:
             sname = name
-            if scripts:
-                sname = scripts.get(name)
-                if sname is None:
-                    continue
+            try:
+                if scripts:
+                    sname = scripts.get(name)
+                    if sname is None:
+                        continue
+            except:
+                import pdb;pdb.set_trace()  ## Breakpoint ##
+
             entry_point_vars = template_vars.copy()
             entry_point_vars.update(
                 {'module_name':  module_name,
                  'attrs': attrs,})
-            installed_scripts[sname] = os.path.join(bin, sname), entry_point_template % entry_point_vars
+            installed_scripts[sname] = (
+                os.path.join(bin, sname),
+                entry_point_template % entry_point_vars
+            )
 
         # generate scripts
-        option_scripts = self.options.get('scripts', None)
+        option_scripts = self.options_scripts
         # now install classical scripts from the entry script.
         already_installed = [os.path.basename(s) for s in installed_scripts]
         for dist in ws:
@@ -146,13 +198,13 @@ class Recipe(egg.Recipe):
                        and not(s.endswith('.pyc') or s.endswith('.pyo')):
                         items[s] = provider._fn(provider.egg_info, 'scripts/%s' % s)
             for script in items:
-                if not (arguments and not option_scripts) \
-                   or (script in option_scripts) \
-                   or (dist.project_name in scripts):
+                if self.filter(dist, script,
+                               entry_points_options, arguments,
+                               console_scripts):
                     # mean to filter by dist, even if the dist doesnt provide
                     # console scripts ;), just add dist.project_name in the
                     # scripts section
-                    if dist.project_name in scripts:
+                    if dist.project_name in console_scripts:
                         scripts.setdefault(name, name)
                     script_filename = items[script]
                     inst_script = os.path.join(bin,os.path.split(script_filename)[1])
@@ -175,11 +227,12 @@ class Recipe(egg.Recipe):
                     )
         l = installed_scripts.keys()
         l.sort()
-        self.logger.info(
-            'Generated scripts: \'%s\'.' % (
+        msg = 'There were no scripts found to generate or the recipe did not select any one.'
+        if(l):
+            msg = 'Generated scripts: \'%s\'.' % (
                 "', '".join(l)
             )
-        )
+        self.logger.info(msg)
         return installed_scripts.keys()
 
 script_template = """\

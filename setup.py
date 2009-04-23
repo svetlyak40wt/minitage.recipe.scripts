@@ -1,4 +1,4 @@
-import os
+import os, sys
 from setuptools import setup, find_packages
 setupdir = os.path.abspath(
     os.path.dirname(__file__)
@@ -8,25 +8,44 @@ os.chdir(setupdir)
 name='minitage.recipe'
 version = '0.34'
 
-def read(rnames):
+
+def read(*rnames):
     return open(
-        os.path.join(setupdir, rnames)
+        os.path.join(setupdir, *rnames)
     ).read()
+
+long_description = (
+    read('README.txt')
+    + '\n'\
+    + read('src', 'minitage', 'recipe', 'tests', 'shared.txt')
+    + '\n'
+    + read('src', 'minitage', 'recipe', 'tests', 'scripts.txt')
+    + '\n'
+    + read('src', 'minitage', 'recipe', 'tests', 'egg.txt')
+    + '\n'
+    + read('src', 'minitage', 'recipe', 'tests', 'cmmi.txt')
+    + '\n'
+    + read('src', 'minitage', 'recipe', 'tests', 'fetch.txt')
+    + '\n'
+    + read('src', 'minitage', 'recipe', 'tests', 'printer.txt')
+    + '\n'
+    + read('src', 'minitage', 'recipe', 'tests', 'wsgi.txt')
+    + '\n'
+    + read('src', 'minitage', 'recipe', 'tests', 'api.txt')
+    + '\n'
+    + read('CHANGES.txt')
+    + '\n'
+)
+
+if 'RST_TEST' in os.environ:
+    print long_description
+    sys.exit(0)
 
 setup(
     name=name,
     version=version,
-    description="zc.buildout recipes to compile and install software or python packages and generate scripts.",
-    long_description= (
-#        read('README.txt')\
-#        + '\n'\
-#        + read('CHANGES.txt')\
-#        + '\n'\
-#        + read(*['src', 'minitage', 'recipe', 'tests', 'shared.txt'])\
-#        + '\n'\
-#        + read(*['src', 'minitage', 'recipe', 'tests', 'cmmi.txt'])\
-#        + '\n'\
-    ),
+    description="zc.buildout recipes to compile and install software or python packages and generate scripts or configuration files.",
+    long_description= long_description,
     classifiers=[
         'Framework :: Buildout',
         'Intended Audience :: Developers',
@@ -66,6 +85,8 @@ setup(
             'zdu = %s:Recipe' % 'minitage.recipe.du',
             'cmmi = %s:Recipe' % 'minitage.recipe.cmmi',
             'scripts = %s:Recipe' % 'minitage.recipe.scripts',
+            'script = %s:Recipe' % 'minitage.recipe.scripts',
+            'eggs = %s:Recipe' % 'minitage.recipe.scripts',
             'wsgi = %s:Recipe' % 'minitage.recipe.wsgi',
         ]
     },

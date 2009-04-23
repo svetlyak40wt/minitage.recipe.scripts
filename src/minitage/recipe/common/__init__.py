@@ -22,6 +22,8 @@ import re
 import shutil
 import sys
 import subprocess
+import urlparse
+from distutils.dir_util import copy_tree
 
 from minitage.core.common import get_from_cache, system, splitstrip
 from minitage.core.unpackers.interfaces import IUnpackerFactory
@@ -29,6 +31,39 @@ from minitage.core.fetchers.interfaces import IFetcherFactory
 from minitage.core import core
 
 __logger__ = 'minitage.recipe'
+
+
+def uniquify(l):
+    result = []
+    for i in l:
+        if not i in result:
+            result.append(i)
+    return result
+
+def divide_url(url):
+    scmargs_sep = '|'
+    url_parts = url.split(scmargs_sep)
+    surl, type, revision, directory, scmargs = '', '', '', '', ''
+    if url_parts:
+        surl = url_parts[0].strip()
+    if len(url_parts) > 1:
+        type = url_parts[1].strip()
+    if len(url_parts) > 2:
+        revision = url_parts[2].strip()
+    if len(url_parts) > 3:
+        directory = url_parts[3].strip()
+    if not(directory) and (surl) and ('//' in surl):
+        directory = surl.replace('://', '/').replace('/', '.')
+    if len(url_parts) > 4:
+        scmargs = scmargs_sep.join(url_parts[4:]).strip()
+    if 'file://' in url:
+        directory = os.path.basename('')
+    surl = surl and surl or ''
+    type = type and type or 'static'
+    revision = revision and revision or ''
+    directory = directory and directory or ''
+    scmargs = scmargs and scmargs or ''
+    return surl, type, revision, directory, scmargs
 
 def appendVar(var, values, separator='', before=False):
     oldvar = copy.deepcopy(var)
@@ -72,12 +107,35 @@ class MinitageCommonRecipe(object):
         # url from and scm type if any
         # the scm is one available in the 'fetchers' factory
         self.url = self.options.get('url', None)
-        self.urls = self.options.get('urls', '').strip().split('\n')
-        self.urls.append(self.url)
-        self.urls = [re.sub('/$', '', u) for u in self.urls if u]
-        self.scm = self.options.get('scm', None)
-        self.revision = self.options.get('revision', None)
-        self.scm_args = self.options.get('scm-args', None)
+        self.urls_list = self.options.get('urls', '').strip().split('\n')
+        self.urls_list.insert(0,self.url)
+        # remove trailing /
+        self.urls_list = [re.sub('/$', '', u) for u in self.urls_list if u]
+        self.default_scm = self.options.get('scm', 'static')
+        self.default_scm_revision = self.options.get('revision', '')
+        self.default_scm_args = self.options.get('scm-args', '')
+
+        # construct a dict in the form:
+        # with that, it keeps compatibilty with older recipes.
+        # { url {type:'', args: ''}}
+        self.urls = {}
+        for kurl in self.urls_list:
+            # ignore double checkouted urls in all cases
+            if not kurl in self.urls:
+                url, scmtype, scmrevison, scmdirectory, scmargs = divide_url(kurl)
+                if not scmargs:
+                    scmargs = self.default_scm_args
+                if not scmrevison:
+                    scmrevison = self.default_scm_revision
+                if not scmtype:
+                    scmtype = self.default_scm
+                self.urls[url] = {
+                    'url' : url,
+                    'type': scmtype,
+                    'args': scmargs,
+                    'revision': scmrevison,
+                    'directory': scmdirectory,
+                }
 
         # If 'download-cache' has not been specified,
         # fallback to [buildout]['downloads']
@@ -93,9 +151,21 @@ class MinitageCommonRecipe(object):
         )
         # update with the desired env. options
         if 'environment' in options:
-            lenv = buildout.get(options['environment'].strip(), {})
-            for key in lenv:
-                os.environ[key] = lenv[key]
+            if not '=' in options["environment"]:
+                lenv = buildout.get(options['environment'].strip(), {})
+                for key in lenv:
+                    os.environ[key] = lenv[key]
+            else:
+                 for line in options["environment"].split("\n"):
+                     try:
+                         lparts = line.split('=')
+                         key = lparts[0]
+                         value = '='.join(lparts[1:])
+                         key, _, value = line.partition('=')
+                         os.environ[key] = value
+                     except Exception, e:
+                         pass
+
 
         # maybe md5
         self.md5 = self.options.get('md5sum', None)
@@ -172,6 +242,10 @@ class MinitageCommonRecipe(object):
             ).split()
         )
         self.patches = self.options.get('patches', '').split()
+        if 'patch' in self.options:
+            self.patches.append(
+                self.options.get('patch').strip()
+            )
         # conditionnaly add OS specifics patches.
         self.patches.extend(
             splitstrip(
@@ -210,12 +284,13 @@ class MinitageCommonRecipe(object):
         )
 
         # configuration options
+        self.autogen = self.options.get('autogen', '').strip()
         self.configure_options = ' '.join(
             splitstrip(
                 self.options.get( 'configure-options', '')
             )
         )
-        self.configure_options += ' '.join(
+        self.configure_options += ' %s ' % ' '.join(
             splitstrip(
                 self.options.get( 'extra_options', '')
             )
@@ -472,6 +547,17 @@ class MinitageCommonRecipe(object):
             )
             shutil.rmtree(self.tmp_directory)
 
+    def _autogen(self):
+        """Run autogen script.
+        """
+        cwd = os.getcwd()
+        os.chdir(self.build_dir)
+        if 'autogen' in self.options:
+            self.logger.info('Auto generating '
+                             'configure files')
+            self._system(self.autogen)
+        os.chdir(cwd)
+
     def _choose_configure(self, compile_dir):
         """configure magic to runne with
         exotic configure systems.
@@ -487,7 +573,7 @@ class MinitageCommonRecipe(object):
            and (not 'noconfigure' in self.options):
             self.logger.error('Unable to find the configure script')
             raise core.MinimergeError('Invalid package contents, '
-                                      'there is no configure script.')
+                                      'there is no configure script in %s.' % compile_dir)
 
         return configure
 
@@ -513,12 +599,13 @@ class MinitageCommonRecipe(object):
         """Run make targets except install."""
         cwd = os.getcwd()
         os.chdir(directory)
-        for target in targets:
-            try:
-                self._system('%s %s %s' % (self.make_cmd, self.make_options, target))
-            except Exception, e:
-                message = 'Make failed for targets: %s' % targets
-                raise core.MinimergeError(message)
+        if not 'nomake' in self.options:
+            for target in targets:
+                try:
+                    self._system('%s %s %s' % (self.make_cmd, self.make_options, target))
+                except Exception, e:
+                    message = 'Make failed for targets: %s' % targets
+                    raise core.MinimergeError(message)
         os.chdir(cwd)
 
     def _make_install(self, directory):
@@ -543,29 +630,60 @@ class MinitageCommonRecipe(object):
             shutil.rmtree(tmp)
         os.chdir(cwd)
 
-    def _download(self, url=None, destination=None,
-                  scm=None, revision=None, scm_args=None, cache=True):
+    def _download(self,
+                  url=None,
+                  destination=None,
+                  scm=None,
+                  revision=None,
+                  scm_args=None,
+                  cache=True):
         """Download the archive."""
         self.logger.info('Download archive')
         if not url:
             url = self.url
 
+        if not url:
+            raise core.MinimergeError('URL was not set!')
+
+        if not destination and (url in self.urls):
+            d = self.urls[url]['directory']
+            if d:
+                if os.path.sep in d:
+                    destination = os.path.abspath(d)
         if not destination:
             destination = self.download_cache
 
-        if destination and not os.path.isdir(destination):
-            os.makedirs(destination)
+        if not scm:
+            if url in self.urls:
+                scm = self.urls[url]['type'].strip()
+        if (not scm) or os.path.exists(url):
+            scm = 'static'
 
-        if scm:
-            # set path for scms.
+        # we use a special function for static files as the generic static
+        # fetcher do some magic for md5 uand unpacking and are unwanted there?
+        if scm != 'static':
+            # if we have a fetcher in minibuild dependencies, we make it come in
+            # the PATH:
             self._set_path()
             opts = {}
 
             if not revision:
-                revision = self.revision
+                # compatibility
+                if not (url in self.urls):
+                    revision = self.default_scm_revision
+                else:
+                    r = self.urls[url]['revision'].strip()
+                    if r:
+                        revision = r
 
             if not scm_args:
-                scm_args = self.scm_args
+                # compatibility
+                if not (url in self.urls):
+                    scm_args = self.default_scm_args
+                else:
+                    a  = self.urls[url]['args'].strip()
+                    if a:
+                        scm_args = a
 
             if scm_args:
                 opts['args'] = scm_args
@@ -595,11 +713,13 @@ class MinitageCommonRecipe(object):
                 else:
                     self.logger.info('We assumed that \'%s\' is the result'
                                      ' of a check out as'
-                                     ' we are in offline mode.' % scm_dest
+                                     ' we are running in'
+                                     ' offline mode.' % scm_dest
                                     )
             return scm_dest
-
         else:
+            if destination and not os.path.isdir(destination):
+                os.makedirs(destination)
             return get_from_cache(
                 url,
                 destination,
@@ -634,6 +754,8 @@ class MinitageCommonRecipe(object):
                     add = False
             if add :
                 pypath.append(entry)
+        # uniquify the list
+        pypath = uniquify(pypath)
         os.environ['PYTHONPATH'] = ':'.join(pypath)
 
 
@@ -641,7 +763,7 @@ class MinitageCommonRecipe(object):
         """Set path."""
         self.logger.info('Setting path')
         os.environ['PATH'] = appendVar(os.environ['PATH'],
-                     self.path\
+                     uniquify(self.path)\
                      + [self.buildout['buildout']['directory'],
                         self.options['location']]\
                      , ':')
@@ -650,9 +772,9 @@ class MinitageCommonRecipe(object):
     def _set_pkgconfigpath(self):
         """Set PKG-CONFIG-PATH."""
         self.logger.info('Setting pkgconfigpath')
+        pkgp = os.environ.get('PKG_CONFIG_PATH', '').split(':')
         os.environ['PKG_CONFIG_PATH'] = ':'.join(
-            self.pkgconfigpath
-            + os.environ.get('PKG_CONFIG_PATH', '').split(':')
+            uniquify(self.pkgconfigpath+pkgp)
         )
 
     def _set_compilation_flags(self):
@@ -739,9 +861,14 @@ class MinitageCommonRecipe(object):
         if not directory:
             directory = self.tmp_directory
         self.logger.info('Unpacking in %s.' % directory)
-        unpack_f = IUnpackerFactory()
-        u = unpack_f(fname)
-        u.unpack(fname, directory)
+        if os.path.isdir(fname):
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+            copy_tree(fname, directory)
+        else:
+            unpack_f = IUnpackerFactory()
+            u = unpack_f(fname)
+            u.unpack(fname, directory)
 
     def _patch(self, directory, patch_cmd=None,
                patch_options=None, patches =None, download_dir=None):
@@ -798,20 +925,29 @@ class MinitageCommonRecipe(object):
     def _get_compil_dir(self, directory, filter=True):
         """Get the compilation directory after creation.
         Basically, the first repository in the directory
-        which is not the download cache.
+        which is not the download cache if there are no
+        files in the directory
         Arguments:
             - directory where we will compile.
         """
         self.logger.info('Guessing compilation directory')
         contents = os.listdir(directory)
-        if filter:
-            contents = [i
-                        for i in os.listdir(directory)
-                        if not i .startswith('.')]
         # remove download dir
         if '.download' in contents:
             del contents[contents. index('.download')]
-        return os.path.join(directory, contents[0])
+        top = directory
+        if filter:
+            f = [i
+                 for i in os.listdir(directory)
+                 if (not os.path.isdir(os.path.join(directory, i)))
+                 and (not i .startswith('.'))]
+            d = [i
+                 for i in os.listdir(directory)
+                 if os.path.isdir(os.path.join(directory, i))
+                 and (not i .startswith('.'))]
+            if len(f) < 2 and d:
+                top = os.path.join(directory, d[0])
+        return top
 
     def _system(self, cmd):
         """Running a command."""
@@ -826,5 +962,7 @@ class MinitageCommonRecipe(object):
         # ret = os.system(cmd)
         if ret:
             raise  core.MinimergeError('Command failed: %s' % cmd)
+
+
 
 # vim:set et sts=4 ts=4 tw=80:

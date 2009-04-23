@@ -1,0 +1,510 @@
+
+===============================================
+minitage.recipe:egg
+===============================================
+
+
+Abstract
+-----------------
+    - This recipe intends to install eggs and python software
+    - Its heavilly inspired by zc.recipe.eggs* and try to completly replace it whereas be API compatbile.
+    - You can use it in conjunction with the buildout.minitagificator extension which monkey patch zc.buildout to use minitage recipes.
+    - The recipe has a robust offline mode.
+    - What we can do that zc.recipe.egg wouldnt do, either at all or not in the way we want to:
+
+        * Don't rely on easy_install to detect and install dependencies, that can lead to versions inccompatibilities
+        * Handles and preserve eggs extra dependencies
+        * Apply specific patches for eggs based on their name and them generate a specific egg with a specific version, burried in the buildout via the "versions".
+        * Make the minitage environnent comes into the environment when building if any, making compilation steps easy if you have declared and build the neccessary dependencies.
+        * Be able to install unindexed at all stuff, just by precising url to install, that can be even an automatic checkout from any repository.
+        * You have hooks to play with the recipe, if it doesnt fit exactly to your need, you can hook for a specific egg at any point of the build.
+        * Check md5 on indexes which append md5 fragments on urls, to verify package integrity
+
+    - If you need scripts generation, just use the minitage.recipe:scripts recipe, it's a specialized recipe of this one. Its use is similar, with just a bunch more options.
+
+Specific options
+-----------------
+
+    * urls
+
+        See the shared options for more information on how to set them.
+        This is how to specify a distrbituion with is not indexed on pypi and where find-links dance can not work.
+        This is also how to specify to install something from svn::
+
+            urls = http://foo.tld/my_super_egg|svn|666 # checkout and install this egg from svn at revision 666
+    * eggs
+
+        A list of egg requirements to install without the version specs bit.::
+
+            Plone
+            lxml
+
+    * EGGNAME-patch-options
+        patch binary to use for this egg
+    * EGGNAME-patch-binary
+        Options to give to the patch program when applying patches for this egg
+    * EGGNAME-patches
+        Specific patchs for an egg name to apply at install time::
+
+            Django-patches = ${buildout:directory}/foo.patch
+    * EGGNAME-UNAME-patches
+        Same as previous, but will just occurs on this UNAME specifc OS (linux|freebsd|darwin)
+        Specific patchs for an egg name to apply at install time::
+
+            Django-linux-patches = ${buildout:directory}/foo.patch
+
+    * versions
+        Default to buildout:versions. versions part to use to pin the version of the installed eggs.
+        It defaults to buildout's one
+    * index
+        Custom eggs index (not pypi/simple). It defaults to buildout's one
+    * find-links
+        additionnal links vhere we can find eggs. It defaults to buildout's one
+    * extra-paths
+            Extra paths to include in a generated script or at build time.
+    * relative-paths
+        If set to true, then egg paths will be generated relative to the script path.
+        This allows a buildout to be moved without breaking egg paths.
+        This option can be set in either the script section or in the buildout section.
+    * Specifying the python to use, two ways:
+
+        * python
+            The name of a section to get the Python executable from. If not specified, then
+            the buildout python option is used. The Python executable is found in the
+            executable option of the named section. It defaults to buildout's one
+        * executable
+            path to the python executable to use.
+
+    * hooks
+
+      A hook is in the form /path/to/hook:CALLABLE::
+
+            myhook=${buildout:directory}/toto.py:foo
+
+      Where we have toto.py::
+
+            def foo(options, buildout):
+                return 'Hourray'
+
+      The complete possible hooks list:
+
+        * post-download-hook
+            hook executed after each download
+        * post-checkout-hook
+            hook executed after each checkout
+        * EGGNAME-pre-setup-hook
+            hook executed before running the setup.py dance
+        * EGGNAME-post-setup-hook
+            hook executed after running the setup.py dance
+
+Patches
+--------
+
+    * When you use patches for an egg, his version will become ::
+
+        Django-1.0-final -> Django-1.0-final-ZMinitagePatched-$PatchesNamesComputation$
+
+    * This name have some Z* inside to make some precedence on other eggs at the same version. (see setuptools naming scheme)
+    * After that the egg is created, the buildout is backed up and patched to point to this version
+    * Thus, you can have in your common egg cache, this egg for your specific project, and the classical one for others.
+      This can be interessant, for example, for the zope RelStorage patch to apply on ZODB code.
+
+Detailled documentation
+-------------------------
+
+Let's create a buildout configuration file::
+
+    >>> rmdir(tempdir)
+    >>> mkdir(tempdir)
+    >>> cd(tempdir)
+    >>> a = [mkdir(d) for d in ('eggs', 'develop-eggs', 'bin', 'src')]
+    >>> install_develop_eggs(['minitage.recipe'])
+    >>> install_eggs_from_pathes(['zc.buildout'], sys.path)
+    >>> touch('buildout.cfg')
+    >>> sh('buildout -o bootstrap')
+    buildout -o bootstrap...
+    >>> index_url = start_server(os.path.sep.join(tempdir))
+
+Initializing test env.
++++++++++++++++++++++++
+::
+
+    >>> if not os.path.exists('foo'):
+    ...     mkdir('foo')
+    ... else:
+    ...     rmdir(foo)
+    ...     mkdir('foo')
+    >>> touch('foo/setup.py', data="""
+    ... from setuptools import setup
+    ... setup(name='foo', version='1.0')
+    ...
+    ... """)
+    >>> touch('foo/toto.py', data="""
+    ... def f():
+    ...     print "foo"
+    ...
+    ... """)
+    >>> noecho = [os.remove(d) for d in os.listdir('.') if '.tar.gz' in d]
+    >>> os.chdir('foo')
+    >>> sh('python setup.py sdist')
+    p...
+    >>> touch('setup.py', data="""
+    ... from setuptools import setup
+    ... setup(name='foo', version='2.0')
+    ...
+    ... """)
+    >>> sh('python setup.py sdist')
+    p...
+    >>> noecho = [shutil.copy(os.path.join('dist', d), os.path.join('..', d)) for d in os.listdir('dist')]
+    >>> os.chdir('..')
+    >>> touch('patch', data="""
+    ... --- foo.old/setup.py    2009-04-18 13:36:40.199680168 +0200
+    ... +++ foo/setup.py        2009-04-18 13:26:12.307692349 +0200
+    ... @@ -2,3 +2,7 @@
+    ...  from setuptools import setup
+    ...  setup(name='foo', version='2.0')
+    ...
+    ... +
+    ... +
+    ... +print 'patched'
+    ... +
+    ... """)
+
+Installing eggs from index or find links, the classical way to install python packages
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+We need to specify a find-links entry to make the recipe find our 'foo' egg as it is not on pypi
+As we want to show the update capability of the recipe, we will first install the oldest foo version.
+
+    >>> noecho = [remove(os.path.join('eggs', egg)) for egg in os.listdir('eggs') if 'foo' in egg]
+    >>> data = """
+    ... [versions]
+    ... foo=1.0
+    ... [buildout]
+    ... download-cache=${buildout:directory}
+    ... parts =
+    ...     part
+    ... [part]
+    ... recipe=minitage.recipe:egg
+    ... find-links=%(index)s
+    ... eggs=foo
+    ... """%{'index': index_url}
+    >>> touch('buildout.cfg', data=data)
+    >>> noecho = [remove(os.path.join('eggs', egg)) for egg in os.listdir('eggs') if 'foo' in egg]
+    >>> sh('bin/buildout install part')
+    bin/buildout install part...
+    Installing part.
+    minitage.recipe: Installing python egg(s).
+    minitage.recipe: Trying to get  distribution for 'foo'
+    minitage.recipe: Download archive
+    minitage.recipe: Downloading http://...:.../foo-1.0.tar.gz in /tmp/buildout.test/minitage/eggs/foo-1.0.tar.gz
+    minitage.recipe: Unpacking in ...
+    minitage.recipe: Guessing compilation directory
+    minitage.recipe: Setting path
+    minitage.recipe: Setting path
+    minitage.recipe: Setting pkgconfigpath
+    minitage.recipe: Setting compilation flags
+    Processing foo-1.0.tar.gz...
+    Running foo-1.0/setup.py bdist_egg --dist-dir /tmp/easy_install...
+    Location : /tmp/buildout.test/eggs/foo-1.0-py...egg...
+
+Installing eggs with a patch
++++++++++++++++++++++++++++++++++++
+Patching is easy, just put your patches in YouEgg-patches.
+
+    >>> data = """
+    ... [versions]
+    ... foo=1.0
+    ... [buildout]
+    ... download-cache=${buildout:directory}
+    ... parts =
+    ...     part
+    ... [part]
+    ... recipe=minitage.recipe:egg
+    ... find-links=%(index)s
+    ... foo-patches = ${buildout:directory}/patch
+    ... eggs=foo
+    ... """%{'index': index_url}
+    >>> touch('buildout.cfg', data=data)
+    >>> sh('bin/buildout install part')
+    bin/buildout install part...
+    minitage.recipe: Running patch -t -Np0 < /tmp/buildout.test/minitage/eggs/patches/foo/1.0/patch
+    can't find file to patch at input line 4
+    Perhaps you used the wrong -p or --strip option?
+    The text leading up to this was:
+    --------------------------
+    |
+    |--- foo.old/setup.py...
+    |+++ foo/setup.py...
+    --------------------------
+    No file to patch.  Skipping patch.
+    1 out of 1 hunk ignored
+    <BLANKLINE>
+    While:
+      Installing part...
+    SystemError: ('Failed', 'patch -t -Np0 < /tmp/buildout.test/minitage/eggs/patches/foo/1.0/patch')...
+
+Oups, the patch level ! .
+
+    >>> data = """\
+    ... [versions]
+    ... foo=1.0
+    ... [buildout]
+    ... download-cache=${buildout:directory}
+    ... parts =
+    ...     part
+    ... [part]
+    ... recipe=minitage.recipe:egg
+    ... find-links=%(index)s
+    ... eggs=foo
+    ... foo-patches = ${buildout:directory}/patch
+    ... foo-patch-options = -Np1
+    ... """%{'index': index_url}
+    >>> touch('buildout.cfg', data=data)
+    >>> sh('bin/buildout -vvvvv install part')
+    b...
+    minitage.recipe: We have the distribution that satisfies 'foo==1.0'.
+    minitage.recipe: We have no distributions for foo that satisfies 'foo==1.0-ZMinitagePatched-Patch'.
+    minitage.recipe: We found a source distribution for 'foo==1.0' in '/tmp/buildout.test/minitage/eggs/foo-1.0.tar.gz'.
+    minitage.recipe: Pinning custom egg version in buildout, trying to write the configuration
+    minitage.recipe: CREATING buildout backup in /tmp/buildout.test/buildout.cfg.before.fixed_version.bak...
+    minitage.recipe: Running patch -t -Np1 < /tmp/buildout.test/minitage/eggs/patches/foo/1.0/patch...
+    Location : /tmp/buildout.test/eggs/foo-1.0_ZMinitagePatched_Patch-py2.5.egg
+    minitage.recipe: Got foo 1.0-ZMinitagePatched-Patch.
+    minitage.recipe: All egg dependencies seem to be installed!...
+
+Now that we have it, try to resintall.
+
+    >>> sh('bin/buildout -vvvvv install part')
+    bin/buildout...
+    minitage.recipe: We have the distribution that satisfies 'foo==1.0-ZMinitagePatched-Patch'.
+    minitage.recipe: Pinning custom egg version in buildout, trying to write the configuration
+    minitage.recipe: Version already pinned, nothing has been wroten...
+
+In all cases our buildout is patched.
+
+    >>> cat('buildout.cfg')
+    [versions]
+    foo...=...1.0-ZMinitagePatched-Patch...
+
+.. Desactivated, i had bugs in buildout internals with that.
+.. Another interresint thing is that if a part wants an egg wich is requiring a patch
+.. in the minitage's sense, it will try to find a part providing this patch automaticly.
+.. 
+.. In the following exemple, we ll remark that t will call the 'part' part to build
+.. the foo-1.0_ZMinitagePatched_Patch egg as it was not there before.
+.. 
+..     >>> data = """[versions]
+..     ... foo = 1.0-ZMinitagePatched-Patch
+..     ... [buildout]
+..     ... download-cache=${buildout:directory}
+..     ... parts =
+..     ...     part
+..     ... versions = versions
+..     ... [part]
+..     ... recipe=minitage.recipe:egg
+..     ... find-links=%(index)s
+..     ... eggs=foo
+..     ... foo-patches = ${buildout:directory}/patch
+..     ... foo-patch-options = -Np1
+..     ... [t]
+..     ... recipe=minitage.recipe:egg
+..     ... find-links=%(index)s
+..     ... eggs=foo
+..     ... """%{'index': index_url}
+..     >>> touch('buildout.cfg', data=data)
+..     >>> noecho = [remove(os.path.join('eggs', egg)) for egg in os.listdir('eggs') if 'foo' in egg]
+..     >>> sh('bin/buildout -vvvvv install t')
+..     b...
+..     minitage.recipe: Installing python egg(s).
+..     minitage.recipe: We have no distributions for foo that satisfies 'foo==1.0-ZMinitagePatched-Patch'.
+..     minitage.recipe: Althought [t] doesn't provide appropriate patches for foo==1.0-ZMinitagePatched-Patch, we found [part] which provide them, running it!...
+..     Location : /tmp/buildout.test/eggs/foo-1.0_ZMinitagePatched_Patch-py...egg...
+
+Offline and newest modes
++++++++++++++++++++++++++++
+
+We have ways to make buildout not download the latest versions found
+on indexes and be very conservative on what we akready got local.
+
+Removing the version bit, but choosing to be non newest will make
+buildout not to install the new foo-2.0 version.
+
+    >>> data = """\
+    ... [versions]
+    ... [buildout]
+    ... download-cache=${buildout:directory}
+    ... parts =
+    ...     part
+    ... versions = versions
+    ... [t]
+    ... recipe=minitage.recipe:egg
+    ... find-links=%(index)s
+    ... eggs=foo
+    ... """%{'index': index_url}
+    >>> touch('buildout.cfg', data=data)
+    >>> sh('bin/buildout -Nvvvvv install t')
+    b...
+    minitage.recipe: Installing python egg(s).
+    minitage.recipe: Picked: foo = 1.0-ZMinitagePatched-Patch
+    minitage.recipe: All egg dependencies seem to be installed!...
+
+Idem in offline mode.
+
+    >>> sh('bin/buildout -ovvvvv install t')
+    b...
+    minitage.recipe: Picked: foo = 1.0-ZMinitagePatched-Patch
+    minitage.recipe: All egg dependencies seem to be installed!...
+
+But then, going online/newest will trigger the installation of the 2.0 egg.
+
+    >>> sh('bin/buildout -nvvvvv install t')
+    b...
+    Location : /tmp/buildout.test/eggs/foo-2.0-py...egg
+    minitage.recipe: Got foo 2.0.
+    minitage.recipe: Picked: foo = 2.0
+    minitage.recipe: All egg dependencies seem to be installed!...
+
+Installing eggs from an url, the specific way
+++++++++++++++++++++++++++++++++++++++++++++++++
+It s possible to install an egg from a known url without any indexing system.
+
+    >>> noecho = [remove(os.path.join('eggs', egg)) for egg in os.listdir('eggs') if 'foo' in egg]
+    >>> data = """
+    ... [buildout]
+    ... download-cache=${buildout:directory}
+    ... parts =
+    ...     part
+    ... [part]
+    ... recipe=minitage.recipe:egg
+    ... urls=file://${buildout:directory}/foo-1.0.tar.gz
+    ... """
+    >>> touch('buildout.cfg', data=data)
+    >>> sh('bin/buildout -vvvvv install part')
+    bin/buildout -vvvvv install part...
+    minitage.recipe: Installing python egg(s).
+    minitage.recipe: Download archive
+    minitage.recipe: Searching cache at /tmp/buildout.test/minitage/eggs
+    minitage.recipe: Using cache file in /tmp/buildout.test/minitage/eggs/foo-1.0.tar.gz
+    minitage.recipe: We have no distributions for foo that satisfies 'foo==1.0'.
+    minitage.recipe: We found a source distribution for 'foo==1.0' in '/tmp/buildout.test/minitage/eggs/foo-1.0.tar.gz'.
+    minitage.recipe: Unpacking in /tmp/...
+    minitage.recipe: Pinning custom egg version in buildout, trying to write the configuration
+    minitage.recipe: CREATING buildout backup in /tmp/buildout.test/buildout.cfg.before.fixed_version.bak...
+
+As we are installing from an url, we must pin the version to be sure to use this egg,
+even if we have some other similar egg on index or find-links.
+
+    >>> cat('buildout.cfg')
+    <BLANKLINE>
+    [buildout]
+    download-cache=${buildout:directory}
+    parts =
+        part
+    versions = versions
+    [part]
+    recipe=minitage.recipe:egg
+    urls=file://${buildout:directory}/foo-1.0.tar.gz...
+    [versions]
+    foo...=...1.0...
+
+See that a versions section, and a key in the buildout section have been added.
+
+If we try to install a newer version, via an url, it will work, even if the version is pinned.
+
+    >>> data = """
+    ... [buildout]
+    ... download-cache=${buildout:directory}
+    ... parts =
+    ...     part
+    ... [part]
+    ... recipe=minitage.recipe:egg
+    ... urls=file://${buildout:directory}/foo-2.0.tar.gz
+    ... """
+    >>> touch('buildout.cfg', data=data)
+    >>> sh('bin/buildout -vvvvv install part')
+    b...
+    >>> cat('buildout.cfg')
+    <BLANKLINE>
+    [buildout]
+    download-cache=${buildout:directory}
+    parts =
+        part
+    versions = versions
+    [part]
+    recipe=minitage.recipe:egg
+    urls=file://${buildout:directory}/foo-2.0.tar.gz...
+    [versions]
+    foo = 2.0...
+
+File urls work in offline mode.
+
+    >>> noecho = [remove(os.path.join('eggs', egg)) for egg in os.listdir('eggs') if 'foo' in egg]
+    >>> [egg for egg in os.listdir('eggs') if 'foo' in egg]
+    []
+    >>> sh('bin/buildout -o install part')
+    b...
+    >>> [egg for egg in os.listdir('eggs') if 'foo' in egg]
+    ['foo-2.0-py...egg']
+
+If we try to rebuild the egg, we cannot, as the same egg is already built.
+This is to prevent rebuilding triggered by buildout each time we launch it,
+and also to delete already good versions present in the cache.
+
+    >>> sh('bin/buildout -ovvvvv install part')
+    b...
+    minitage.recipe: Installing python egg(s).
+    minitage.recipe: Download archive
+    minitage.recipe: Searching cache at /tmp/buildout.test/minitage/eggs
+    minitage.recipe: Using cache file in /tmp/buildout.test/minitage/eggs/foo-2.0.tar.gz
+    minitage.recipe: We have the distribution that satisfies 'foo==2.0'.
+    minitage.recipe: If you want to rebuild, please do 'rm -rf /tmp/buildout.test/eggs/foo-2.0-py...egg'
+    minitage.recipe: Pinning custom egg version in buildout, trying to write the configuration
+    minitage.recipe: Version already pinned, nothing has been wroten...
+
+Pypi md5 check support
++++++++++++++++++++++++++
+
+Pypi has the habit to append an md5 fragment to its egg urls,
+we ll use it to check the already present distribution files in the cache.
+
+    >>> dlcache = os.path.join('minitage', 'eggs')
+    >>> noecho = [(egg, remove(os.path.join(dlcache, egg))) for egg in os.listdir(dlcache) if 'developer' in egg]
+    >>> data = """
+    ... [versions]
+    ... mr.developer=0.15
+    ... [buildout]
+    ... versions = versions
+    ... download-cache=${buildout:directory}
+    ... parts =
+    ...     part
+    ... [part]
+    ... recipe = minitage.recipe:egg
+    ... eggs=mr.developer
+    ... """
+    >>> touch('buildout.cfg', data=data)
+    >>> sh('bin/buildout install part')
+    b...
+    >>> egg = [egg for egg in os.listdir(dlcache) if 'mr.developer' in egg][0]
+    >>> egg
+    'mr.developer-0.15.zip'
+
+Resetting the file contents.
+
+    >>> touch(os.path.join(dlcache, egg), data='')
+
+Deleting the installed egg.
+
+    >>> noecho = [(egg, remove(os.path.join('eggs', egg))) for egg in os.listdir('eggs') if 'developer' in egg]
+
+Trying to reinstall.
+
+    >>> sh('bin/buildout -vvvvv install part')
+    b...
+    minitage.recipe: Searching cache at /tmp/buildout.test/minitage/eggs
+    minitage.recipe: MD5SUM mismatch for /tmp/buildout.test/minitage/eggs/mr.developer-0.15.zip: Good:796babbb65820f6c052141cae1fb3e8d != Bad:d41d8cd98f00b204e9800998ecf8427e
+    Backuping the old file but re download it!
+    A bakcup will be made in /tmp/buildout.test/minitage/eggs/mr.developer-0.15.zip.md5sum_mismatch.0.
+    minitage.recipe: Cache download http://pypi.python.org/packages/source/m/mr.developer/mr.developer-0.15.zip#md5=796babbb65820f6c052141cae1fb3e8d as /tmp/buildout.test/minitage/eggs
+    minitage.recipe: Downloading http://pypi.python.org/packages/source/m/mr.developer/mr.developer-0.15.zip#md5=796babbb65820f6c052141cae1fb3e8d in /tmp/buildout.test/minitage/eggs/mr.developer-0.15.zip...
+
+

@@ -1,0 +1,94 @@
+
+====================================
+Options shared by all the recipes
+====================================
+
+Notes
+--------
+
+    - All recipes inherit all these options, depending which you are using, those options will have an incidence on the build.
+    - Useless to say that the recipes code is not difficult, and as a deployer, its your job to have a look at the code to avoid surprises.
+    - If you are inside a minitage all recipes will look on your minibuild dependencies section to get things into the environment at execution time. Like feeding CFLAGS, pkgconfig, ldflags and so on.
+    - All recipes look for a minitage section in your buildout file and take dependencies and eggs as minitage projects to get into the environnment too::
+
+        ...
+        [minitage]
+        dependencies = postgresql-8.3
+        eggs = py-libxslt-1.1
+
+Options
+-------------
+    * urls
+      A set of urls to checkout
+
+        - The last part or the urls will be the name of your checkout dir unless you have precised the name
+        - If you don't specify any scm_type, it will be static unless you specify it in options (see scm)
+        - If you don't specify any revision, it will be not set unless you specify it in options (see scm_revision)
+        - The form is a New line separated list of urls to fetcha in the following form (*the | is part of the line ;)*)::
+
+                url to checkout | fetch_type | fetcher_args | destination directory name
+
+      Here are valid inputs ::
+
+            svn://toto | svn | -r666 | mydirecotryname
+            svn://toto | svn | -r666
+            svn://toto | svn
+            file://toto
+            http://tata/toto.tgz
+
+      Where::
+
+            fetch_type ::= bzr | hg | git | static | svn
+
+    - executable
+        python executable to use
+    - url (backward cmpatibility)
+        url to get the source from, in the previous urls syntax
+    - scm
+        default scm to use (a valid minitage fetch factory to use (static, git, svn, bzr, hg).)
+        defaults to static.
+    - scm_revision
+            default revision to checkout if scm is not static
+    - md5sum
+        md5sum of the checkouted source [see cmmi recipe for documentation]
+    - patch-binary
+        path to the patch program
+    - patch-options
+        options to feed the patch program with [see cmmi recipe for documentation]
+    - patches
+        patches to apply [see cmmi recipe for documentation]
+    - patch
+        A patch to apply, compatibility with zc.recipe.cmmi
+    - location
+        where to put the build result. (default to parts/PART_NAME)
+    - includes
+        CFLAGS to give to the compiler [see cmmi recipe for documentation]
+    - includes-dirs
+        Directories to add to the include paths  [see cmmi recipe for documentation]
+    - library-dirs
+        Directories to add to the linker, and they will be added as -rpath too. [see cmmi recipe for documentation]
+    - environment
+        a part name where we can get key/values to add to the build environment [see cmmi recipe for documentation]
+    - path
+        line separated list of paths to append to $PATH during build
+    - pkgconfigpath
+        line separated list of paths to append to $PKGCONFIGPATH during build [see cmmi recipe for documentation]
+    - pythonpath
+        line separated list of paths to append to $PYTHONPATH during build
+
+Options incidences
+----------------------
+
+ - `minitage.recipe:cmmi`
+    executable is not taken in account.
+ - `minitage.recipe:fetch`
+    only the download related options are used.
+ - `minitage.recipe:eggs`, `minitage.recipe:wsgi`, `minitage.recipe:scripts`, `minitage.recipe:printer`
+    the configure-*, and make-*, and extra_options are not used
+
+Patches
+-----------
+
+    - They can be either a file or an url.
+    - You have means to specify options to the patch program, like -pXXX, abuses of it.
+

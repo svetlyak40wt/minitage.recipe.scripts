@@ -16,7 +16,7 @@ __docformat__ = 'restructuredtext en'
 
 import os
 from minitage.recipe import common
-from minitage.core.common import get_from_cache, system, splitstrip 
+from minitage.core.common import get_from_cache, system, splitstrip
 
 class Recipe(common.MinitageCommonRecipe):
     """
@@ -31,17 +31,20 @@ class Recipe(common.MinitageCommonRecipe):
         """installs an egg
         """
         directories = []
-        for url in self.urls:
-            dest = self.prefix
-            parts = url.split(' ')
-            if len(parts) > 1:
-                dest = os.path.join(dest, parts[0])
-                url = ' '.join(parts[1:])
-
-            if not os.path.isdir(dest):
-                os.makedirs(dest)
-            fname = self._download(url=url, scm = self.scm, destination=dest, cache=False)
+        self.logger.info('Start checkouts')
+        for url, url_infos in self.urls.items():
+            dest = url_infos.get('directory')
+            if not dest.startswith('/'):
+                dest = os.path.join(
+                    self.options['location'],
+                    dest
+                )
+            fname = self._download(url=url,
+                                   destination=dest,
+                                   cache=False)
+            self.logger.info('Completed dowbload of %s in %s' % (url, dest))
             directories.append(fname)
+        self.logger.info('Finnished checkouts')
         return []
 
 # vim:set et sts=4 ts=4 tw=80:

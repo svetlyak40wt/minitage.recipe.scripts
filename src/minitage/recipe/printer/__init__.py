@@ -21,6 +21,8 @@ import pkg_resources
 from minitage.recipe import egg
 import StringIO
 
+CUTED_STR = '#--- 8-< 8-<  8-<  8-<  8-<  8-<  8-<  ---'
+
 class Recipe(egg.Recipe):
     """
     Downloads and installs a distutils Python distribution.
@@ -57,33 +59,30 @@ class Recipe(egg.Recipe):
         reqs = [pkg_resources.Requirement.parse(r) for r in sreqs]
         env = pkg_resources.Environment(scan_paths, python = self.executable_version)
         required_dists = ws.resolve(reqs, env)
+
+        if not ('quiet' in self.options):
+            self.logger.info('Maybe put this in a cfg like file ;)')
+            print CUTED_STR
+
         s = StringIO.StringIO()
         if 'file' in self.options:
             s = open(self.options['file'], 'w')
 
-        if not ('quiet' in self.options):
-            self.logger.info('Maybe put this in a cfg like file ;)')
-            print
-            print
-        s.write("[versions]\n")
-        reqs = []
+        file_content = "\n\n[versions]\n"
+        envreqs = []
         for dist in list(set(required_dists)):
-           reqs.append("%s=%s\n" % (dist.project_name, dist.version))
-        reqs.sort()
-        s.write(''.join(reqs))
+           envreqs.append("%s=%s" % (dist.project_name, dist.version))
+        envreqs.sort()
+        file_content += '\n'.join(envreqs)
+        file_content += '\n\n[buildout]\nversions=versions\n\n'
+        s.write(file_content)
+
+        if not ('quiet' in self.options):
+            print file_content
+            print CUTED_STR
+
         if 'file' in self.options:
             self.logger.info('Generated: %s' % self.options['file'])
-
-        if 'file' in self.options:
-            s.close()
-
-        if not ('quiet' in self.options):
-            if isinstance(s, file):
-                print open(self.options['file']).read()
-            else:
-                print s.getvalue()
-        if not ('quiet' in self.options):
-            self.logger.info('------------')
 
         return []
 

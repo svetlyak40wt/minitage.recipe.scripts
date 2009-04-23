@@ -1,0 +1,145 @@
+
+===============================================
+minitage.recipe:printer
+===============================================
+
+
+Abstract
+-----------------
+    - This recipe intends to install eggs and python software and on top of installed stuff, generating KGS (Known good Set) versions file.
+    - This will help you to pion all the eggs used by a specific application by generating nicely configs will all eggs pinned insude?
+    - This recipe inherit from minitage;recipe:egg.
+
+Specific options
+-----------------
+
+    * All the shared options and the options from minitage.recipe:egg +
+    * quiet
+        if set: do not print anything to stdout
+    * file
+        file to write the version to
+
+Detailled documentation
+-------------------------
+
+Let's create a buildout configuration file::
+
+    >>> rmdir(tempdir)
+    >>> mkdir(tempdir)
+    >>> cd(tempdir)
+    >>> a = [mkdir(d) for d in ('eggs', 'develop-eggs', 'bin', 'src')]
+    >>> install_develop_eggs(['minitage.recipe'])
+    >>> install_eggs_from_pathes(['zc.buildout'], sys.path)
+    >>> touch('buildout.cfg')
+    >>> sh('buildout -o bootstrap')
+    buildout -o bootstrap...
+    >>> index_url = start_server(os.path.sep.join(tempdir))
+
+Initializing test env.
++++++++++++++++++++++++
+::
+
+    >>> if os.path.exists('foo'): rmdir(foo)
+    >>> mkdir('foo')
+    >>> mkdir('foo/src/toto')
+    >>> touch('foo/setup.py', data="""
+    ... from setuptools import setup, find_packages
+    ... setup(name='foo', version='1.0',
+    ...     packages=find_packages('src'),
+    ...     package_dir = {'': 'src'},
+    ...     include_package_data=True,
+    ...     scripts=['src/toto/toto.py'],
+    ...     entry_points={'console_scripts': ['s=toto.toto:f']},
+    ...     )
+    ... """)
+    >>> touch('foo/src/toto/__init__.py')
+    >>> touch('foo/src/toto/toto.py', data="""
+    ... def f():
+    ...     print "foo"
+    ... if __name__ == '__main__' :
+    ...     print 'called'
+    ...
+    ... """)
+    >>> noecho = [os.remove(d) for d in os.listdir('.') if '.tar.gz' in d]
+    >>> os.chdir('foo')
+    >>> sh('python setup.py sdist')
+    p...
+    >>> noecho = [shutil.copy(os.path.join('dist', d), os.path.join('..', d)) for d in os.listdir('dist')]
+    >>> os.chdir('..')
+
+Writing only to output
++++++++++++++++++++++++++++++++
+Do not specify the file option.
+
+    >>> data = """
+    ... [buildout]
+    ... download-cache=${buildout:directory}
+    ... parts = part
+    ... [part]
+    ... recipe=minitage.recipe:printer
+    ... find-links=%(index)s
+    ... eggs=foo
+    ... """%{'index': index_url}
+    >>> touch('buildout.cfg', data=data)
+    >>> sh('bin/buildout -vvvvv install')
+    b...
+    minitage.recipe: Maybe put this in a cfg like file ;)
+    #--- 8-< 8-<  8-<  8-<  8-<  8-<  8-<  ---...
+    [versions]
+    foo=1.0...
+    [buildout]
+    versions=versions...
+    #--- 8-< 8-<  8-<  8-<  8-<  8-<  8-<  ---...
+
+Writing to a file
+++++++++++++++++++++++++
+Feed the part with the file option.
+
+    >>> data = """
+    ... [buildout]
+    ... download-cache=${buildout:directory}
+    ... parts = part
+    ... [part]
+    ... recipe=minitage.recipe:printer
+    ... find-links=%(index)s
+    ... eggs=foo
+    ... file=toto.cfg
+    ... """%{'index': index_url}
+    >>> touch('buildout.cfg', data=data)
+    >>> sh('bin/buildout -vvvvv install')
+    b...
+    #--- 8-< 8-<  8-<  8-<  8-<  8-<  8-<  ---
+    minitage.recipe: Generated: toto.cfg...
+
+    >>> cat('toto.cfg')
+    <BLANKLINE>
+    <BLANKLINE>
+    [versions]
+    foo=1.0
+    <BLANKLINE>
+    [buildout]
+    versions=versions
+    <BLANKLINE>
+    <BLANKLINE>
+
+Be quiet please, baby is sleeping
+++++++++++++++++++++++++++++++++++++++
+Set the quiet flag.
+
+    >>> data = """
+    ... [buildout]
+    ... download-cache=${buildout:directory}
+    ... parts = part
+    ... [part]
+    ... recipe=minitage.recipe:printer
+    ... find-links=%(index)s
+    ... eggs=foo
+    ... quiet=1
+    ... file=toto.cfg
+    ... """%{'index': index_url}
+    >>> touch('buildout.cfg', data=data)
+    >>> sh('bin/buildout -vvvvv install')
+    b...
+    minitage.recipe: All egg dependencies seem to be installed!
+    minitage.recipe: Generated: toto.cfg...
+
