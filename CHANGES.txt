@@ -3,6 +3,11 @@ CHANGELOG
 =======================
 
 
+1.2
+-------
+
+    - make it compatible with zc.buildout 1.0
+
 1.1
 -----
 

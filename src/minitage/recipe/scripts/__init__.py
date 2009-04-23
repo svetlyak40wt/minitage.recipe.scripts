@@ -77,7 +77,7 @@ class Recipe(egg.Recipe):
                  and (not arguments)
                  and (not ('scripts' in self.options)))
                 or (name in console_scripts)
-                or (dist.project_name in console_scripts)
+                #or (dist.project_name in console_scripts)
             ):
                 return True
         return False
@@ -119,11 +119,16 @@ class Recipe(egg.Recipe):
         pypath = [os.path.abspath(p)
                   for p in ws.entries+self.extra_paths
                   if os.path.exists(p)]
-        rpypath, rsetup = zc.buildout.easy_install._relative_path_and_setup(
-            os.path.join(self.bin, 'i_will_be_a_script'),
-            pypath,
-            self._relative_paths
-        )
+        rpypath, rsetup = pypath, ''
+        if self._relative_paths:
+            rpypath, rsetup = zc.buildout.easy_install._relative_path_and_setup(
+                os.path.join(self.bin, 'i_will_be_a_script'),
+                pypath,
+                self._relative_paths
+            )
+        else:
+            rpypath = "'%s'" % "',\n'".join(rpypath)
+
         template_vars = {'python': self.executable,
                          'path': rpypath,
                          'rsetup': rsetup,
@@ -146,8 +151,6 @@ class Recipe(egg.Recipe):
 
         # scan eggs for entry point keys
         for dist in ws:
-            #if 'ZODB3' in dist.project_name:
-            #    import pdb;pdb.set_trace()  ## Breakpoint ##
             for name in pkg_resources.get_entry_map(dist, 'console_scripts'):
                 if self.filter(dist, name,
                                entry_points_options, arguments,
@@ -168,14 +171,10 @@ class Recipe(egg.Recipe):
         # generate console entry pointts
         for name, module_name, attrs in entry_points:
             sname = name
-            try:
-                if scripts:
-                    sname = scripts.get(name)
-                    if sname is None:
-                        continue
-            except:
-                import pdb;pdb.set_trace()  ## Breakpoint ##
-
+            if scripts:
+                sname = scripts.get(name)
+                if sname is None:
+                    continue
             entry_point_vars = template_vars.copy()
             entry_point_vars.update(
                 {'module_name':  module_name,

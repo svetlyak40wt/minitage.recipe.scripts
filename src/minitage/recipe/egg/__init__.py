@@ -1049,7 +1049,6 @@ extends = customversions.cfg
                     raise core.MinimergeError('easy install '
                                               'failed !')
             except Exception, e:
-                import pdb;pdb.set_trace()  ## Breakpoint ##
                 raise core.MinimergeError(
                     'PythonPackage via easy_install '
                     'Install failed !\n%s' % e
