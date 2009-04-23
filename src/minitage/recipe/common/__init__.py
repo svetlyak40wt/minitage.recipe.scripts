@@ -636,7 +636,8 @@ class MinitageCommonRecipe(object):
                   scm=None,
                   revision=None,
                   scm_args=None,
-                  cache=True):
+                  cache=True,
+                  md5 = None):
         """Download the archive."""
         self.logger.info('Download archive')
         if not url:
@@ -724,7 +725,7 @@ class MinitageCommonRecipe(object):
                 url,
                 destination,
                 self.logger,
-                self.md5,
+                md5,
                 self.offline,
             )
 
@@ -884,7 +885,7 @@ class MinitageCommonRecipe(object):
             cwd = os.getcwd()
             os.chdir(directory)
             for patch in patches:
-                fpatch = self._download(patch, destination=download_dir, cache=False)
+                fpatch = self._download(patch, destination=download_dir, md5=None, cache=False)
                 system('%s -t %s < %s' %
                        (patch_cmd,
                         patch_options,

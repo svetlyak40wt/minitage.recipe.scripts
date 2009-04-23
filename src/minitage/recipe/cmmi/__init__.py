@@ -48,7 +48,7 @@ class Recipe(common.MinitageCommonRecipe):
             cwd = os.getcwd()
             # downloading or get the path
             # in the cache if we are offline
-            fname = self._download()
+            fname = self._download(md5=self.md5)
 
             # preconfigure hook
             self._call_hook('pre-unpack-hook')
