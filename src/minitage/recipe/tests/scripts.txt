@@ -73,6 +73,8 @@ Initializing test env.
 +++++++++++++++++++++++
 ::
 
+    >>> if os.path.exists('foo'): rmdir(dl)
+    >>> mkdir('dl')
     >>> if os.path.exists('foo'): rmdir(foo)
     >>> mkdir('foo')
     >>> mkdir('foo/src/toto')
@@ -107,7 +109,7 @@ Thus by not specifying any scripts entry in the buildout part.
 
     >>> data = """
     ... [buildout]
-    ... download-cache=${buildout:directory}
+    ... download-cache=${buildout:directory}/dl
     ... parts = part
     ... [part]
     ... recipe=minitage.recipe:scripts
@@ -159,7 +161,7 @@ Installing only s.
 
     >>> data = """
     ... [buildout]
-    ... download-cache=${buildout:directory}
+    ... download-cache=${buildout:directory}/dl
     ... parts = part
     ... [part]
     ... recipe=minitage.recipe:scripts
@@ -177,7 +179,7 @@ Installing only toto.py.
 
     >>> data = """
     ... [buildout]
-    ... download-cache=${buildout:directory}
+    ... download-cache=${buildout:directory}/dl
     ... parts = part
     ... [part]
     ... recipe=minitage.recipe:scripts
@@ -191,23 +193,24 @@ Installing only toto.py.
     b...
     minitage.recipe: Generated scripts: 'toto.py'....
 
-Installing scripts from the foo distribution.
-
-    >>> data = """
-    ... [buildout]
-    ... download-cache=${buildout:directory}
-    ... parts = part
-    ... [part]
-    ... recipe=minitage.recipe:scripts
-    ... find-links=%(index)s
-    ... scripts =
-    ...     foo
-    ... eggs=foo
-    ... """%{'index': index_url}
-    >>> touch('buildout.cfg', data=data)
-    >>> sh('bin/buildout -vvvvv install')
-    b...
-    minitage.recipe: Generated scripts: 's', 'toto.py'....
+.. desactivated because caused more harm... too much scripts no filtered
+.. Installing scripts from the foo distribution.
+.. 
+..     >>> data = """
+..     ... [buildout]
+..     ... download-cache=${buildout:directory}/dl
+..     ... parts = part
+..     ... [part]
+..     ... recipe=minitage.recipe:scripts
+..     ... find-links=%(index)s
+..     ... scripts =
+..     ...     foo
+..     ... eggs=foo
+..     ... """%{'index': index_url}
+..     >>> touch('buildout.cfg', data=data)
+..     >>> sh('bin/buildout -vvvvv install')
+..     b...
+..     minitage.recipe: Generated scripts: 's', 'toto.py'....
 
 Declaring entry-points
 +++++++++++++++++++++++
@@ -215,7 +218,7 @@ We ll add an entry point 't' to be generated.
 
     >>> data = """
     ... [buildout]
-    ... download-cache=${buildout:directory}
+    ... download-cache=${buildout:directory}/dl
     ... parts = part
     ... [part]
     ... recipe=minitage.recipe:scripts
@@ -234,25 +237,20 @@ What about adding environment variables for gis env.
 
     >>> data = """
     ... [buildout]
-    ... download-cache=${buildout:directory}
+    ... download-cache=${buildout:directory}/dl
     ... parts = part
     ... [part]
     ... recipe=minitage.recipe:scripts
     ... find-links=%(index)s
-    ... scripts = foo
     ... entry-points=t=toto.toto:f
-    ... initialization = import os;os.environ.set('GDAL', 'TRUE')
     ... eggs=foo
+    ... initialization = import os;os.environ.set('GDAL', 'TRUE')
     ... """%{'index': index_url}
     >>> touch('buildout.cfg', data=data)
     >>> sh('bin/buildout -vvvvv install')
     b...
 
-    >>> "import os;os.environ.set('GDAL', 'TRUE')" in open(os.path.join('bin', 'toto.py')).read()
-    True
     >>> "import os;os.environ.set('GDAL', 'TRUE')" in open(os.path.join('bin', 't')).read()
-    True
-    >>> "import os;os.environ.set('GDAL', 'TRUE')" in open(os.path.join('bin', 's')).read()
     True
 
 Adding arguments
@@ -261,22 +259,19 @@ What about adding arguments to our launchers.
 
     >>> data = """
     ... [buildout]
-    ... download-cache=${buildout:directory}
+    ... download-cache=${buildout:directory}/dl
     ... parts = part
     ... [part]
     ... recipe=minitage.recipe:scripts
     ... find-links=%(index)s
-    ... scripts = foo
+    ... eggs = foo
     ... entry-points=t=toto.toto:f
     ... arguments = ['a', 'b']
-    ... eggs=foo
     ... """%{'index': index_url}
     >>> touch('buildout.cfg', data=data)
     >>> sh('bin/buildout -vvvvv install')
     b...
 
-    >>> "toto.toto.f(['a', 'b'])" in open(os.path.join('bin', 's')).read()
-    True
     >>> "toto.toto.f(['a', 'b'])" in open(os.path.join('bin', 't')).read()
     True
 
@@ -286,7 +281,7 @@ Here is how you can generate a specific python interpreter will all the environe
 
     >>> data = """
     ... [buildout]
-    ... download-cache=${buildout:directory}
+    ... download-cache=${buildout:directory}/dl
     ... parts = part
     ... [part]
     ... recipe=minitage.recipe:scripts

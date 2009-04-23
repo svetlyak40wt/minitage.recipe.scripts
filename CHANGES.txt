@@ -2,6 +2,10 @@
 CHANGELOG
 =======================
 
+1.3
+----
+
+    - release uncomitted unittests updates
 
 1.2
 -------

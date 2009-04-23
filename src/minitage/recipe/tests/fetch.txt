@@ -107,9 +107,10 @@ Downloading some urls, files, git checkouts with one in a particular checkout di
     minitage.recipe: Download archive
     minitage.recipe: Setting path
     Initialized empty Git repository in /tmp/buildout.test/parts/part/http.git.minitage.org.git.minitage.eggs.minitage.core/.git/
-    HEAD is now at e6effd1 temporary commit for sharing code
+    HEAD is now at ...
     minitage.recipe: Completed dowbload of http://git.minitage.org/git/minitage/eggs/minitage.core in /tmp/buildout.test/parts/part/http.git.minitage.org.git.minitage.eggs.minitage.core
     minitage.recipe: Finnished checkouts...
     <BLANKLINE>
-
+    g...
+    <BLANKLINE>
 
