@@ -66,7 +66,8 @@ class Recipe(egg.Recipe):
         # never touch to buildout script if it s not explicit!
         if name in ['zc.buildout', 'buildout']:
             if ('buildout' in console_scripts) \
-               or ('zc.buildout' in console_scripts):
+               or ('zc.buildout' in console_scripts)\
+               or self.options.get('eggs').strip() == 'zc.buildout':
                 return True
             else:
                 return False
