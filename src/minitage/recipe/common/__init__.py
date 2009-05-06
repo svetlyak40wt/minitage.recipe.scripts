@@ -264,8 +264,8 @@ class MinitageCommonRecipe(object):
         if self.buildout.get('part', {}).get('gmake', None)\
            and self.uname not in ['cygwin', 'linux']:
             gnumake = 'gmake'
-        self.make_cmd = self.options.get('make-binary', gnumake).strip()
-        self.make_options = self.options.get('make-options', '').strip()
+        self.options['make-binary'] = self.make_cmd = self.options.get('make-binary', gnumake).strip()
+        self.options['make-options'] = self.make_options = self.options.get('make-options', '').strip()
 
         # what we will install.
         # if 'make-targets'  present, we get it line by line
