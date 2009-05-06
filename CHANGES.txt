@@ -2,6 +2,13 @@
 CHANGELOG
 =======================
 
+
+1.4->1.7
+----------
+
+    - x64 fixes
+    - bugfix in static distribution install when you have patches to apply.
+
 1.3
 ----
 

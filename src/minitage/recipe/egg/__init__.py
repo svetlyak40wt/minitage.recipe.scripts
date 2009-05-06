@@ -368,11 +368,36 @@ class Recipe(common.MinitageCommonRecipe):
                     sdist, savail, _ = self._satisfied(requirement, working_set)
                 except zc.buildout.easy_install.MissingDistribution:
                     pass
+                except zc.buildout.easy_install.IncompatibleVersionError, e:
+                    # case of already installed patched dists:
+                    if PATCH_MARKER in "%s" % e:
+                        # finding the version arguments
+                        version = '0'
+                        for arg in e.args:
+                            if PATCH_MARKER in arg:
+                                version = arg
+                        requirement = pkg_resources.Requirement.parse(
+                                        '%s == %s' % (dist.project_name, version)
+                                        )
+                        try:
+                            # version already pinned in the buildout, with the
+                            # patched bits, but the egg isnt already installed
+                            # in the egg cache
+                            sdist, savail, _ = self._satisfied(requirement, working_set)
+                        except zc.buildout.easy_install.MissingDistribution:
+                            pass
+                    else:
+                        raise
                 if sdist:
                     msg = 'If you want to rebuild, please do \'rm -rf %s\''
                     self.logger.info(msg % sdist.location)
                     sdist.activate()
+                    # for buildout to use it !
                     working_set.add(sdist)
+                    requirements.append(sdist.as_requirement())
+                    self._pin_version(sdist.project_name, sdist.version)
+                    self.versions[sdist.project_name] = sdist.version
+                    self.add_dist(sdist)
                 else:
                     already_installed_dependencies = {}
                     for r in requirements:
@@ -383,12 +408,12 @@ class Recipe(common.MinitageCommonRecipe):
                         working_set,
                         already_installed_dependencies)
                     installed_dist.activate()
+                    # for buildout to use it !
                     working_set.add(installed_dist)
-                    requirements.append(dist.as_requirement())
-                # for buildout to use it !
-                self._pin_version(dist.project_name, dist.version)
-                self.versions[dist.project_name] = dist.version
-                self.add_dist(dist)
+                    requirements.append(installed_dist.as_requirement())
+                    self._pin_version(installed_dist.project_name, installed_dist.version)
+                    self.versions[installed_dist.project_name] = installed_dist.version
+                    self.add_dist(installed_dist)
         return requirements, working_set
 
     def scan(self, scanpaths=None):
@@ -543,11 +568,18 @@ class Recipe(common.MinitageCommonRecipe):
                     # do this egg, anyhow :)
                     version, patched_egg = get_requirement_version(requirement)
                     if patched_egg:
-                        requirement = pkg_resources.Requirement.parse(
-                            "%s==%s" % (
-                                requirement.project_name, get_orig_version(v)
-                            )
-                        )
+                        try:
+                            requirement = pkg_resources.Requirement.parse(
+                                    "%s==%s" % (
+                                        requirement.project_name, get_orig_version(v)
+                                    )
+                                )
+                        except Exception, e:
+                            # egg from url, needing patch !
+                            if version.startswith(PATCH_MARKER):
+                                requirement = pkg_resources.Requirement.parse(requirement.project_name)
+                            else:
+                                raise
                         avail = self._search_sdist(requirement, working_set)
         # Mark buildout, recipes and installers to use our specific egg!
         # Even, if we have already installed, in case user or something else
