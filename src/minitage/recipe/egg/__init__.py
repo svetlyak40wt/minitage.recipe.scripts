@@ -1220,8 +1220,6 @@ extends = customversions.cfg
             self._set_path()
             self._set_pkgconfigpath()
             self._set_compilation_flags()
-            if self.uname == 'darwin':
-                os.environ['MACOSX_DEPLOYMENT_TARGET'] = '10.5'
             setattr(self, 'unsanitized', False)
 
 # vim:set et sts=4 ts=4 tw=80:
