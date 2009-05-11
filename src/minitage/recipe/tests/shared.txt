@@ -19,26 +19,29 @@ Notes
 Options
 -------------
     * urls
-      A set of urls to checkout
+      A set of urls to checkout in the form
 
-        - The last part or the urls will be the name of your checkout dir unless you have precised the name
+
+        - The last part or the urls will be the name of your checkout dir unless you have precised the name in "destination directory name"
         - If you don't specify any scm_type, it will be static unless you specify it in options (see scm)
         - If you don't specify any revision, it will be not set unless you specify it in options (see scm_revision)
         - The form is a New line separated list of urls to fetcha in the following form (*the | is part of the line ;)*)::
 
-                url to checkout | fetch_type | fetcher_args | destination directory name
+                url to checkout | fetch_type | revision | destination directory name | fetcher_args
 
       Here are valid inputs ::
 
-            svn://toto | svn | -r666 | mydirecotryname
-            svn://toto | svn | -r666
+            svn://toto | svn | 666 | mydirectoryname | --ignore-externals
+            svn://toto | svn | 666 | mydirectoryname
+            svn://toto | svn | 666
+            svn://toto | svn | | | --ignore-externals
             svn://toto | svn
             file://toto
             http://tata/toto.tgz
 
       Where::
 
-            fetch_type ::= bzr | hg | git | static | svn
+            fetch_type ::= bzr | hg | git | static (for ftp://, file://, http:// and local files) | svn
 
     - executable
         python executable to use

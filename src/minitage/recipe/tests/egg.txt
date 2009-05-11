@@ -227,7 +227,7 @@ Patching is easy, just put your patches in YouEgg-patches.
     >>> touch('buildout.cfg', data=data)
     >>> sh('bin/buildout install part')
     bin/buildout install part...
-    minitage.recipe: Running patch -t -Np0 < /tmp/buildout.test/minitage/eggs/patches/foo/1.0/patch
+    minitage.recipe: Running patch -t -Np0 < /tmp/buildout.test/minitage/eggs/patches/foo/1.0/patch_d96115b00b41e282469f73708c68bdaf/patch
     can't find file to patch at input line 4
     Perhaps you used the wrong -p or --strip option?
     The text leading up to this was:
@@ -241,7 +241,8 @@ Patching is easy, just put your patches in YouEgg-patches.
     <BLANKLINE>
     While:
       Installing part...
-    SystemError: ('Failed', 'patch -t -Np0 < /tmp/buildout.test/minitage/eggs/patches/foo/1.0/patch')...
+    SystemError: ('Failed', 'patch -t -Np0 < /tmp/buildout.test/minitage/eggs/patches/foo/1.0/patch_d96115b00b41e282469f73708c68bdaf/patch')
+    <BLANKLINE>
 
 Oups, the patch level ! .
 
@@ -289,10 +290,10 @@ In all cases our buildout is patched.
 .. Desactivated, i had bugs in buildout internals with that.
 .. Another interresint thing is that if a part wants an egg wich is requiring a patch
 .. in the minitage's sense, it will try to find a part providing this patch automaticly.
-.. 
+..
 .. In the following exemple, we ll remark that t will call the 'part' part to build
 .. the foo-1.0_ZMinitagePatched_Patch egg as it was not there before.
-.. 
+..
 ..     >>> data = """[versions]
 ..     ... foo = 1.0-ZMinitagePatched-Patch
 ..     ... [buildout]

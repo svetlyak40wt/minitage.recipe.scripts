@@ -218,7 +218,7 @@ This second one aimes to show us the patch capababilities.
     >>> touch('buildout.cfg', data=data)
     >>> sh('bin/buildout -o install part')
     bin/buildout -o install part...
-    minitage.recipe: Running patch -t -Np0 < /tmp/buildout.test/minitage/patch
+    minitage.recipe: Running patch -t -Np0 < /tmp/buildout.test/minitage/patch_d96115b00b41e282469f73708c68bdaf/patch
     can't find file to patch at input line 3
     Perhaps you used the wrong -p or --strip option?
     The text leading up to this was:
@@ -233,7 +233,7 @@ This second one aimes to show us the patch capababilities.
       Installing part.
     <BLANKLINE>
     An internal error occured due to a bug in either zc.buildout or in a...
-    SystemError: ('Failed', 'patch -t -Np0 < /tmp/buildout.test/minitage/patch')
+    SystemError: ('Failed', 'patch -t -Np0 < /tmp/buildout.test/minitage/patch_d96115b00b41e282469f73708c68bdaf/patch')
     <BLANKLINE>
 
 
@@ -256,7 +256,7 @@ The patch level is wrong !
     >>> touch('buildout.cfg', data=data)
     >>> sh('bin/buildout -o install part')
     bin/buildout -o install part...
-    minitage.recipe: Running patch -t -p1 < /tmp/buildout.test/minitage/patch
+    minitage.recipe: Running patch -t -p1 < /tmp/buildout.test/minitage/patch...
     patching file Makefile
     minitage.recipe: Completed install...
 
@@ -451,7 +451,7 @@ We will use some hook to print the relevant parts.
     minitage.recipe: Executing pre-make-hook
     ('CFLAGS', '-I/foo/include')
     ('LDFLAGS', '-L/bar/lib -Wl,-rpath -Wl,/bar/lib -L/tmp/buildout.test/parts/part/lib -Wl,-rpath -Wl,/tmp/buildout.test/parts/part/lib')
-    ('PKG_CONFIG_PATH', '/lib/pkgconfig/:/usr/qt/3/lib/pkgconfig')
+    ('PKG_CONFIG_PATH', '/lib/pkgconfig/...')
     ('LD_RUN_PATH', '/someruntimespath/lib:/tmp/buildout.test/parts/part/lib')...
 
 
@@ -526,7 +526,7 @@ It is possible to autogenerate the configure files.
         >>> sh('bin/buildout -o install part')
         bin/buildout -o install part...
         minitage.recipe: Auto generating configure files
-        minitage.recipe: Running configure
+        minitage.recipe: Running /tmp/buildout.test/__minitage__part__tmp/foo/configure
         configure...
 
 shared builds

@@ -21,6 +21,7 @@ import os
 import re
 import shutil
 import sys
+import md5 as mmd5
 import subprocess
 import urlparse
 from distutils.dir_util import copy_tree
@@ -553,9 +554,9 @@ class MinitageCommonRecipe(object):
         cwd = os.getcwd()
         os.chdir(self.build_dir)
         if 'autogen' in self.options:
-            self.logger.info('Auto generating '
-                             'configure files')
-            self._system(self.autogen)
+            self.logger.info('Auto generating configure files')
+            autogen = os.path.join(self.build_dir, self.autogen)
+            self._system(autogen)
         os.chdir(cwd)
 
     def _choose_configure(self, compile_dir):
@@ -572,9 +573,10 @@ class MinitageCommonRecipe(object):
         if not os.path.isfile(configure) \
            and (not 'noconfigure' in self.options):
             self.logger.error('Unable to find the configure script')
-            raise core.MinimergeError('Invalid package contents, '
-                                      'there is no configure script in %s.' % compile_dir)
-
+            raise core.MinimergeError(
+                'Invalid package contents, '
+                'there is no configure script in %s.' % compile_dir
+            )
         return configure
 
     def _configure(self, configure):
@@ -636,9 +638,18 @@ class MinitageCommonRecipe(object):
                   scm=None,
                   revision=None,
                   scm_args=None,
-                  cache=True,
-                  md5 = None):
-        """Download the archive."""
+                  cache=None,
+                  md5 = None,
+                  use_cache = True):
+        """Download the archive.
+        url: url to download
+        destination: where to download (directory)
+        scm: scm to use if any
+        revision: revision to checkout if any
+        cache: cache in a subdirectory, either  SCM/urldirectory or urlmd5sum/filename
+        md5: file md5sum
+        use_cache : if False, always redownload even if the file is there
+        """
         self.logger.info('Download archive')
         if not url:
             url = self.url
@@ -663,6 +674,8 @@ class MinitageCommonRecipe(object):
         # we use a special function for static files as the generic static
         # fetcher do some magic for md5 uand unpacking and are unwanted there?
         if scm != 'static':
+            if cache is None:
+                cache = False
             # if we have a fetcher in minibuild dependencies, we make it come in
             # the PATH:
             self._set_path()
@@ -719,14 +732,22 @@ class MinitageCommonRecipe(object):
                                     )
             return scm_dest
         else:
+            if cache:
+                m = mmd5.new()
+                m.update(url)
+                url_md5sum = m.hexdigest()
+                _, _, urlpath, _, fragment = urlparse.urlsplit(url)
+                filename = urlpath.split('/')[-1]
+                destination = os.path.join(destination, "%s_%s" % (filename, url_md5sum))
             if destination and not os.path.isdir(destination):
                 os.makedirs(destination)
             return get_from_cache(
-                url,
-                destination,
-                self.logger,
-                md5,
-                self.offline,
+                url = url,
+                download_cache = destination,
+                logger = self.logger,
+                file_md5 = md5,
+                offline = self.offline,
+                use_cache=use_cache
             )
 
     def _set_py_path(self, ws=None):
@@ -885,7 +906,13 @@ class MinitageCommonRecipe(object):
             cwd = os.getcwd()
             os.chdir(directory)
             for patch in patches:
-                fpatch = self._download(patch, destination=download_dir, md5=None, cache=False)
+                # check the md5 of the patch to see if it is the same.
+                fpatch = self._download(patch,
+                                        destination=download_dir,
+                                        md5=None,
+                                        cache=True,
+                                        use_cache = False,
+                                       )
                 system('%s -t %s < %s' %
                        (patch_cmd,
                         patch_options,
@@ -941,11 +968,11 @@ class MinitageCommonRecipe(object):
             f = [i
                  for i in os.listdir(directory)
                  if (not os.path.isdir(os.path.join(directory, i)))
-                 and (not i .startswith('.'))]
+                 and (not i.startswith('.'))]
             d = [i
                  for i in os.listdir(directory)
                  if os.path.isdir(os.path.join(directory, i))
-                 and (not i .startswith('.'))]
+                 and (not i.startswith('.'))]
             if len(f) < 2 and d:
                 top = os.path.join(directory, d[0])
         return top
