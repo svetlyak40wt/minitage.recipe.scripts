@@ -55,6 +55,9 @@ def get_requirement_version(requirement):
                 patched_egg = True
     return version, patched_egg
 
+def get_first_dist(where):
+    return [a for a in setuptools.package_index.distros_for_filename(where)][0]
+
 def merge_extras(a, b):
     a.extras += b.extras
     a.extras = tuple(set(a.extras))
@@ -260,6 +263,9 @@ class Recipe(common.MinitageCommonRecipe):
             requirements, working_set = self.install_static_distributions(working_set,
                                                                           requirements=requirements,
                                                                           dest=dest)
+            # install static distributions dependencies as well
+            if requirements:
+                extras.extend(requirements)
             # installing classical requirements
             if self.eggs or extras:
                 drequirements, working_set = self._install_requirements(
@@ -303,14 +309,14 @@ class Recipe(common.MinitageCommonRecipe):
         # downloading
         if not urls:
             urls = self.urls
+        dists = []
         for i, url in enumerate(urls):
-            fname = self._download(url=url)
-            dists = []
+            fname = self._download(url=url, cache=True)
             # if it is a repo, making a local copy
             # and scan its distro
             if os.path.isdir(fname):
                 self._call_hook('post-download-hook', fname)
-                tmp = os.path.join(self.tmp_directory, 'wc')
+                tmp = os.path.join(self.tmp_directory, os.path.basename(fname))
                 f = IFetcherFactory(self.minitage_config)
                 for fetcher in f.products:
                     dot = getattr(f.products[fetcher](),
@@ -321,27 +327,38 @@ class Recipe(common.MinitageCommonRecipe):
                             break
                 # go inside dist and scan for setup.py
                 self.options['compile-directory'] = tmp
-                self._call_hook('post-checkout-hook', fname)
+                self._call_hook('post-checkout-hook', tmp)
                 # build the egg distribution in there.
-                cwd = os.getcwd()
-                os.chdir(tmp)
                 self._sanitizeenv(working_set)
-                ret = os.system('%s setup.py sdist' % sys.executable)
-                os.chdir(cwd)
-                sdists = os.path.join(tmp, 'dist')
-                for item in os.listdir(sdists):
-                    dists.extend( [e \
-                                   for e \
-                                   in setuptools.package_index.distros_for_filename(
-                                       os.path.join(sdists,item)
-                                   )]
-                                )
+                # recursivly easy installing dependencies
+                ez = easy_install.easy_install(distutils.core.Distribution())
+                oldcwd = os.getcwd()
+                # generating metadata for source distributions
+                sdist_files = []
+                try:
+                    os.chdir(tmp)
+                    os.system('%s setup.py sdist' % sys.executable)
+                    sdist_files = [os.path.join(tmp, 'dist', a) for a in os.listdir('dist')]
+                except Exception, e:
+                    pass
+                os.chdir(oldcwd)
+                # repackage the checkout as a dist.
+                if sdist_files:
+                    nd = get_first_dist(sdist_files[0])
+                    tempdir = tempfile.mkdtemp()
+                    ttar = os.path.join(
+                        tempdir, '%s-%s.%s' % (nd.project_name,
+                                              nd.version,
+                                              'tar.gz'
+                                             )
+                    )
+                    tar = tarfile.open(ttar, mode='w:gz')
+                    tar.add(tmp, nd.project_name)
+                    tar.close()
+                    dists.append(get_first_dist(ttar))
             else:
                 # scan for the distribution archive infos.
-                dists = [e \
-                         for e \
-                         in setuptools.package_index.distros_for_filename(
-                             fname)]
+                dists.append(get_first_dist(fname))
 
             # sort duplicates
             paths = []

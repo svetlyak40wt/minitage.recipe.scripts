@@ -198,13 +198,7 @@ As we want to show the update capability of the recipe, we will first install th
     minitage.recipe: Download archive
     minitage.recipe: Downloading http://...:.../foo-1.0.tar.gz in /tmp/buildout.test/minitage/eggs/foo-1.0.tar.gz
     minitage.recipe: Unpacking in ...
-    minitage.recipe: Guessing compilation directory
-    minitage.recipe: Setting path
-    minitage.recipe: Setting path
-    minitage.recipe: Setting pkgconfigpath
-    minitage.recipe: Setting compilation flags
     Processing foo-1.0.tar.gz...
-    Running foo-1.0/setup.py bdist_egg --dist-dir /tmp/easy_install...
     Location : /tmp/buildout.test/eggs/foo-1.0-py...egg...
 
 Installing eggs with a patch
@@ -263,14 +257,8 @@ Oups, the patch level ! .
     >>> touch('buildout.cfg', data=data)
     >>> sh('bin/buildout -vvvvv install part')
     b...
-    minitage.recipe: We have the distribution that satisfies 'foo==1.0'.
-    minitage.recipe: We have no distributions for foo that satisfies 'foo==1.0-ZMinitagePatched-Patch'.
-    minitage.recipe: We found a source distribution for 'foo==1.0' in '/tmp/buildout.test/minitage/eggs/foo-1.0.tar.gz'.
     minitage.recipe: Pinning custom egg version in buildout, trying to write the configuration
     minitage.recipe: CREATING buildout backup in /tmp/buildout.test/buildout.cfg.before.fixed_version.bak...
-    minitage.recipe: Running patch -t -Np1 < /tmp/buildout.test/minitage/eggs/patches/foo/1.0/patch...
-    Location : /tmp/buildout.test/eggs/foo-1.0_ZMinitagePatched_Patch-py2.5.egg
-    minitage.recipe: Got foo 1.0-ZMinitagePatched-Patch.
     minitage.recipe: All egg dependencies seem to be installed!...
 
 Now that we have it, try to resintall.
@@ -382,12 +370,7 @@ It s possible to install an egg from a known url without any indexing system.
     >>> touch('buildout.cfg', data=data)
     >>> sh('bin/buildout -vvvvv install part')
     bin/buildout -vvvvv install part...
-    minitage.recipe: Installing python egg(s).
-    minitage.recipe: Download archive
-    minitage.recipe: Searching cache at /tmp/buildout.test/minitage/eggs
-    minitage.recipe: Using cache file in /tmp/buildout.test/minitage/eggs/foo-1.0.tar.gz
-    minitage.recipe: We have no distributions for foo that satisfies 'foo==1.0'.
-    minitage.recipe: We found a source distribution for 'foo==1.0' in '/tmp/buildout.test/minitage/eggs/foo-1.0.tar.gz'.
+    minitage.recipe: We found a source distribution for 'foo==1.0' in '/tmp/buildout.test/minitage/eggs/foo-1.0.tar.gz'...
     minitage.recipe: Unpacking in /tmp/...
     minitage.recipe: Pinning custom egg version in buildout, trying to write the configuration
     minitage.recipe: CREATING buildout backup in /tmp/buildout.test/buildout.cfg.before.fixed_version.bak...
@@ -453,14 +436,7 @@ and also to delete already good versions present in the cache.
 
     >>> sh('bin/buildout -ovvvvv install part')
     b...
-    minitage.recipe: Installing python egg(s).
-    minitage.recipe: Download archive
-    minitage.recipe: Searching cache at /tmp/buildout.test/minitage/eggs
-    minitage.recipe: Using cache file in /tmp/buildout.test/minitage/eggs/foo-2.0.tar.gz
-    minitage.recipe: We have the distribution that satisfies 'foo==2.0'.
-    minitage.recipe: If you want to rebuild, please do 'rm -rf /tmp/buildout.test/eggs/foo-2.0-py...egg'
-    minitage.recipe: Pinning custom egg version in buildout, trying to write the configuration
-    minitage.recipe: Version already pinned, nothing has been wroten...
+    minitage.recipe: If you want to rebuild, please do 'rm -rf /tmp/buildout.test/eggs/foo-2.0-py...egg'...
 
 Pypi md5 check support
 +++++++++++++++++++++++++
@@ -508,4 +484,58 @@ Trying to reinstall.
     minitage.recipe: Cache download http://pypi.python.org/packages/source/m/mr.developer/mr.developer-0.15.zip#md5=796babbb65820f6c052141cae1fb3e8d as /tmp/buildout.test/minitage/eggs
     minitage.recipe: Downloading http://pypi.python.org/packages/source/m/mr.developer/mr.developer-0.15.zip#md5=796babbb65820f6c052141cae1fb3e8d in /tmp/buildout.test/minitage/eggs/mr.developer-0.15.zip...
 
+
+Static distribution dev+static urls
+++++++++++++++++++++++++++++++++++++++++++++++++++
+
+You can also install directly from urls.
+we ll use it to check the already present distribution files in the cache.
+
+    >>> data = """
+    ... [versions]
+    ... mr.developer=0.15
+    ... [buildout]
+    ... versions = versions
+    ... download-cache=${buildout:directory}
+    ... parts =
+    ...     part
+    ... [part]
+    ... recipe = minitage.recipe:egg
+    ... eggs=mr.developer
+    ... [a]
+    ... recipe=minitage.recipe:egg
+    ... urls=
+    ...     http://pypi.python.org/packages/source/m/minitage.core/minitage.core-1.0.4.tar.gz#md5=1e30ceabd1b012e33b1d2f327f6609b5
+    ...     http://pypi.python.org/packages/source/m/minitage.paste/minitage.paste-1.1.tar.gz#md5=b9076b78a17f2247f68d232368fcc8f0
+    ... """
+    >>> touch('buildout.cfg', data=data)
+    >>> sh('bin/buildout -vvvvvv install a')
+    b...
+    Installing a...
+    minitage.recipe: Downloading http://pypi.python.org/packages/source/m/minitage.core/minitage.core-1.0.4.tar.gz#md5=1e30ceabd1b012e33b1d2f327f6609b5 in /tmp/buildout.test/minitage/eggs/minitage.core-1.0.4.tar.gz_c3e78ea4294cdd0a243fbea6e2aa9757/minitage.core-1.0.4.tar.gz...
+    minitage.recipe: Downloading http://pypi.python.org/packages/source/m/minitage.paste/minitage.paste-1.1.tar.gz#md5=b9076b78a17f2247f68d232368fcc8f0 in /tmp/buildout.test/minitage/eggs/minitage.paste-1.1.tar.gz_d3403e6128eddb2b99063674ff8105a1/minitage.paste-1.1.tar.gz...
+    Location : ...
+    minitage.recipe: All egg dependencies seem to be installed!...
+
+The versions are pinned to use your downloaded stuff
+
+    >>> cat('buildout.cfg')
+    <BLANKLINE>
+    [versions]
+    mr.developer=0.15
+    minitage.core = 1.0.4
+    minitage.paste = 1.1
+    [buildout]
+    versions = versions
+    download-cache=${buildout:directory}
+    parts =
+        part
+    [part]
+    recipe = minitage.recipe:egg
+    eggs=mr.developer
+    [a]
+    recipe=minitage.recipe:egg
+    urls=
+        http://pypi.python.org/packages/source/m/minitage.core/minitage.core-1.0.4.tar.gz#md5=1e30ceabd1b012e33b1d2f327f6609b5
+        http://pypi.python.org/packages/source/m/minitage.paste/minitage.paste-1.1.tar.gz#md5=b9076b78a17f2247f68d232368fcc8f0
 
