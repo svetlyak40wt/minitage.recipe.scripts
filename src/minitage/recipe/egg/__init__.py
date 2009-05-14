@@ -240,6 +240,8 @@ class Recipe(common.MinitageCommonRecipe):
         we do not return a path tuple but a workingset
         """
         self.logger.info('Installing python egg(s).')
+        # rescan, there may be develop eggs newly installed after init
+        self.scan()
         requirements = None
         if not extras:
             extras = []

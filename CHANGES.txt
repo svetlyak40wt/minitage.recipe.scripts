@@ -2,6 +2,14 @@
 CHANGELOG
 =======================
 
+1.11
+-------
+
+    - rescan egg direcrectories at install time because there may be new
+      develop eggs or eggs installed by buildout extensions (mr.developer)
+    - fix for interaction with buildout.minitagificator and
+      zc.buildout.easy_install..*script
+
 
 1.-1.10
 ---------
