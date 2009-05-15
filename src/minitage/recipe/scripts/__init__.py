@@ -78,8 +78,9 @@ class Recipe(egg.Recipe):
                  and (not arguments)
                  and (not ('scripts' in self.options)))
                 or (name in console_scripts)
-                or 'generate_all_scripts' in self.options
-                #or (dist.project_name in console_scripts)
+                or (dist.project_name in self.options['eggs'])
+                or ('generate_all_scripts' in self.options
+                    and not entry_points_options)
             ):
                 return True
         return False

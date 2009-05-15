@@ -2,8 +2,8 @@
 CHANGELOG
 =======================
 
-1.11
--------
+1.11 - 1.12
+----------------
 
     - rescan egg direcrectories at install time because there may be new
       develop eggs or eggs installed by buildout extensions (mr.developer)
