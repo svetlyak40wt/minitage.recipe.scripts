@@ -124,22 +124,3 @@ class Recipe(common.MinitageCommonRecipe):
 
         return []
 
-    def update(self):
-        """Update the recipe.
-        wrapper to install"""
-        self.install()
-
-    def _state_hash(self):
-        # hash of our configuration state, so that e.g. different
-        # ./configure options will get a different build directory
-        env = ''.join(['%s%s' % (key, value) for key, value
-                       in os.environ.items()])
-        state = [self.url,
-                 self.configure_options,
-                 self.autogen,
-                 ''.join(self.patches),
-                 self.patch_options,
-                 env]
-        return sha1(''.join(state)).hexdigest()
-
-
