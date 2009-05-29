@@ -39,7 +39,8 @@ class Recipe(egg.Recipe):
         self.not_filtered = []
         self.arguments = self.options.get('arguments', '')
         self.zap = splitstrip(self.options.get('zap', ''))
-        self.for_buildoutscripts = options.get('buildoutscripts', '')
+        # integration with buildout.minitagificator
+        self.for_buildoutscripts = options.get('buildoutscripts', getattr(self, 'for_patchs',False))
         self.initialization = self.options.get('initialization', '')
         self.options_scripts = self.options.get('scripts', '')
         self.entry_points_options = self.options.get('entry-points', '').strip()
