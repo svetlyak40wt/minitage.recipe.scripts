@@ -6,7 +6,7 @@ minitage.recipe:scripts
 
 Abstract
 -----------------
-    - This recipe intends to install eggs and python software and on top of installed stuff, generating scripts.
+    - This recipe intends to install eggs and python software and on top of installed stuff, generating scripts and envrionment files.
     - This recipe inherit from minitage;recipe:egg.
     - Its heavilly inspired by zc.recipe.eggs* and try to completly replace it whereas be API compatbile.
     - You can use it in conjunction with the buildout.minitagificator extension which monkey patch zc.buildout to use minitage recipes.
@@ -193,9 +193,9 @@ Installing only toto.py.
     b...
     minitage.recipe: Generated scripts: 'toto.py'....
 
-.. desactivated because caused more harm... too much scripts no filtered
+.. desactivated because caused more harm than good... too much scripts no filtered
 .. Installing scripts from the foo distribution.
-.. 
+..
 ..     >>> data = """
 ..     ... [buildout]
 ..     ... download-cache=${buildout:directory}/dl
@@ -302,5 +302,32 @@ Here is how you can generate a specific python interpreter will all the environe
     if _interactive:
         import code
         code.interact(banner="", local=globals())...
+
+Generating an envrionment file
+++++++++++++++++++++++++++++++++++
+Here is how you can generate a specific envrionment file that you can source from to get the PYTHONPATH populated with eggs that you have configured.
+
+    >>> data = """
+    ... [buildout]
+    ... download-cache=${buildout:directory}/dl
+    ... parts = part
+    ... [part]
+    ... recipe=minitage.recipe:scripts
+    ... find-links=%(index)s
+    ... env-file = mypy
+    ... eggs=foo
+    ... """%{'index': index_url}
+    >>> touch('buildout.cfg', data=data)
+    >>> sh('bin/buildout -vvvvv install')
+    b...
+    minitage.recipe: Generated scripts: '/tmp/buildout.test/bin/mypy'....
+
+    >>> cat('bin', 'mypy')
+    #!/usr/bin/env sh
+    <BLANKLINE>
+    PYTHONPATH="/tmp/buildout.test/eggs/foo-1.0-py....egg:$PYTHONPATH"
+    export PYTHONPATH
+    <BLANKLINE>
+    <BLANKLINE>
 
 

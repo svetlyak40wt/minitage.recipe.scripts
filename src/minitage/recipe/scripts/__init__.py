@@ -39,10 +39,12 @@ class Recipe(egg.Recipe):
         self.not_filtered = []
         self.arguments = self.options.get('arguments', '')
         self.zap = splitstrip(self.options.get('zap', ''))
+        self.for_buildoutscripts = options.get('buildoutscripts', '')
         self.initialization = self.options.get('initialization', '')
         self.options_scripts = self.options.get('scripts', '')
         self.entry_points_options = self.options.get('entry-points', '').strip()
         self.interpreter = self.options.get('interpreter', '').strip()
+        self.env_file = self.options.get('env-file', '').strip()
         self.bin = self.buildout['buildout'].get('bin-directory',
                                                  os.path.join(os.getcwd(), 'bin'))
         if self.extra_paths:
@@ -78,7 +80,8 @@ class Recipe(egg.Recipe):
                  and (not arguments)
                  and (not ('scripts' in self.options)))
                 or (name in console_scripts)
-                or (dist.project_name in self.options['eggs'])
+                or (bool(self.for_buildoutscripts)
+                    and (dist.project_name in self.options['eggs']))
                 or ('generate_all_scripts' in self.options
                     and not entry_points_options)
             ):
@@ -122,6 +125,7 @@ class Recipe(egg.Recipe):
         pypath = [os.path.abspath(p)
                   for p in ws.entries+self.extra_paths
                   if os.path.exists(p)]
+        abs_pypath = pypath[:]
         rpypath, rsetup = pypath, ''
         if self._relative_paths:
             rpypath, rsetup = zc.buildout.easy_install._relative_path_and_setup(
@@ -170,6 +174,14 @@ class Recipe(egg.Recipe):
         if interpreter:
             inst_script = os.path.join(bin, interpreter)
             installed_scripts[interpreter] = inst_script, py_script_template % template_vars
+
+        if self.env_file:
+            env_vars= template_vars.copy()
+            env_vars['path'] = ':'.join(abs_pypath)
+            env_script = self.env_file
+            if not '/' in self.env_file:
+                env_script = os.path.join(bin, self.env_file)
+            installed_scripts[env_script] = env_script, snv_template % env_vars
 
         # generate console entry pointts
         for name, module_name, attrs in entry_points:
@@ -262,6 +274,13 @@ sys.exit(
         env=os.environ
     ).wait()
 )
+
+"""
+snv_template = """\
+#!/usr/bin/env sh
+
+PYTHONPATH="%(path)s:$PYTHONPATH"
+export PYTHONPATH
 
 """
 

@@ -2,6 +2,11 @@
 CHANGELOG
 =======================
 
+1.14
+-----
+
+    - add enrionment file generation to the scripts recipe
+
 1.13
 ---------
 
