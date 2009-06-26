@@ -18,6 +18,8 @@ __docformat__ = 'restructuredtext en'
 import copy
 import distutils
 import os
+import urllib
+import urlparse
 import shutil
 import sys
 import re
@@ -458,7 +460,26 @@ class Recipe(common.MinitageCommonRecipe):
         # or when your egg is not indexed)
         avail = env.best_match(requirement, working_set)
         if not avail:
-            raise zc.buildout.easy_install.MissingDistribution(
+            # maybe we can get one on the available indexes !
+            try:
+                availables = self.inst._index[requirement.key]
+                matching_sdists = [d
+                                   for d in availables
+                                   if d.precedence == pkg_resources.SOURCE_DIST
+                                   and d in requirement]
+                # prefer distributions with md5 informations
+                def md5sort(x):
+                    p = urlparse.urlparse(x.location)
+                    if 'md5=' in p.fragment:
+                        return 0
+                    return 1
+                if availables:
+                    availables.sort(key=md5sort)
+                    avail = availables[0]
+            except:
+                pass
+            if not avail:
+                raise zc.buildout.easy_install.MissingDistribution(
                     requirement, working_set)
         if avail:
             msg = 'We found a source distribution for \'%s\' in \'%s\'.'
