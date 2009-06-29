@@ -6,7 +6,7 @@ setupdir = os.path.abspath(
 os.chdir(setupdir)
 
 name='minitage.recipe'
-version = '1.17'
+version = '1.18'
 
 def read(*rnames):
     return open(
@@ -48,7 +48,7 @@ setup(
     classifiers=[
         'Framework :: Buildout',
         'Intended Audience :: Developers',
-        'License :: OSI Approved :: GNU General Public License (GPL)',
+        'License :: OSI Approved :: BSD License',
         'Topic :: Software Development :: Build Tools',
         'Topic :: Software Development :: Libraries :: Python Modules',
     ],
@@ -56,7 +56,7 @@ setup(
     author='Mathieu Pasquet',
     author_email='kiorky@cryptelium.net',
     url='http://cheeseshop.python.org/pypi/%s' % name,
-    license='GPL',
+    license='BSD',
     packages=find_packages('src'),
     package_dir = {'': 'src'},
     namespace_packages=['minitage', name],
