@@ -48,6 +48,7 @@ from minitage.core import core
 
 __logger__ = 'minitage.recipe'
 
+RESPACER = re.compile('\s\s*', re.I|re.M|re.U|re.S).sub
 
 def uniquify(l):
     result = []
@@ -892,6 +893,8 @@ class MinitageCommonRecipe(object):
                  if s.strip()]
                 ,' '
             )
+        for key in ('CFLAGS', 'CPPFLAGS', 'CXXFLAGS', 'LDFLAGS', 'LD_RUN_PATH'):
+            os.environ[key] = RESPACER(' ', os.environ.get(key, '')).strip()
 
     def _unpack(self, fname, directory=None):
         """Unpack something"""
