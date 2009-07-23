@@ -2,6 +2,24 @@
 CHANGELOG
 =======================
 
+-> 1.20
+---------
+
+Minitage.recipe.egg:
+
+    - better errors handling
+    - In particular for eggs and url, now md5 urls are preferred.
+    - Also when we can't download a distribution from somewhere, we try to
+      fallback to other distributions which achieve the desired requirement
+
+Minitage.recipe.cmmi:
+
+    - new patch selection for freebsd:
+        freebsd-patches
+
+    - Fix some double spaces left in compilation flags which broke some exotic
+      system builders.
+
 1.14
 -----
 

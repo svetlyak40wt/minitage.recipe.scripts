@@ -272,6 +272,15 @@ class MinitageCommonRecipe(object):
                 )
             )
         )
+        if 'freebsd' in self.uname.lower():
+            self.patches.extend(
+                splitstrip(
+                    self.options.get(
+                        'freebsd-patches',
+                        ''
+                    )
+                )
+            )
 
         # if gmake is setted. taking it as the make cmd !
         # be careful to have a 'gmake' in your path

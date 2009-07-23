@@ -457,12 +457,13 @@ class Recipe(common.MinitageCommonRecipe):
             scanpaths = self.eggs_caches
         self.inst._env.scan(scanpaths)
 
-    def _search_sdist(self, requirement, working_set):
+    def _search_sdists(self, requirement, working_set, multiple=True):
         env = pkg_resources.Environment(
             [self.download_cache],
             python=self.executable_version)
-        sdists = []
+        avail, sdists = None, []
         dist = None
+        results = []
         # try to scan source distribtions
         for file in os.listdir(self.download_cache):
             path = os.path.join(self.download_cache, file)
@@ -474,32 +475,58 @@ class Recipe(common.MinitageCommonRecipe):
         # last try, testing sources (very useful for offline mode
         # or when your egg is not indexed)
         avail = env.best_match(requirement, working_set)
-        if not avail:
+        if avail:
+            results.append(avail)
+        results = []
+        if not results:
             # maybe we can get one on the available indexes !
             try:
                 availables = self.inst._index[requirement.key]
-                matching_sdists = [d
-                                   for d in availables
-                                   if d.precedence == pkg_resources.SOURCE_DIST
-                                   and d in requirement]
-                # prefer distributions with md5 informations
+                matching_sdists = [sdist
+                                   for sdist in availables
+                                   if sdist.precedence == pkg_resources.SOURCE_DIST
+                                   and (sdist in requirement)]
                 def md5sort(x):
                     p = urlparse.urlparse(x.location)
                     if 'md5=' in p.fragment:
                         return 0
                     return 1
-                if availables:
-                    availables.sort(key=md5sort)
-                    avail = availables[0]
-            except:
+                sorted_dict, keys = {}, []
+                # order dists from last version with preferrence for md5 urls
+                def version_compare(x, y):
+                   if pkg_resources.parse_version(x)  > pkg_resources.parse_version(y):
+                      return -1
+                   elif pkg_resources.parse_version(x) == pkg_resources.parse_version(y):
+                      return 0
+                   else:
+                      return 1
+                if matching_sdists:
+                    for sdist in matching_sdists:
+                        key = '%s' % sdist.version
+                        sorted_dict.setdefault(key, [])
+                        sorted_dict[key].append(sdist)
+                    keys = sorted_dict.keys()
+                    for key in sorted_dict:
+                        sorted_dict[key].sort(key=md5sort)
+                    keys.sort(version_compare)
+                    if not multiple:
+                        availables = [matching_sdists[0]]
+                    noecho = [results.extend(sorted_dict[key]) for key in keys]
+            except Exception, e:
                 pass
-            if not avail:
+            if not results:
                 raise zc.buildout.easy_install.MissingDistribution(
                     requirement, working_set)
-        if avail:
-            msg = 'We found a source distribution for \'%s\' in \'%s\'.'
-            self.logger.info(msg % (requirement, avail.location))
-        return avail
+        if results:
+            for avail in results:
+                msg = 'We found a source distribution for \'%s\' in \'%s\'.'
+                self.logger.info(msg % (requirement, avail.location))
+        return results
+
+    def _search_sdist(self, requirement, working_set, multiple=False):
+        res = self._search_sdists(requirement, working_set, multiple=False)
+        if res:
+            return res[0]
 
     def _satisfied(self, requirement, working_set):
         # be sure to honnour versions restrictions
@@ -830,7 +857,26 @@ extends = customversions.cfg
                 dist, avail, maybe_patched_requirement = self._satisfied(requirement, working_set)
                 # installing extras if required
                 if dist is None:
-                    fdist = self._get_dist(avail, working_set)
+                    try:
+                        fdist = self._get_dist(avail, working_set)
+                    except:
+                        # try to find the same distribution on other links,
+                        # eg when the download_url returns 404 or error
+                        sdist, sdists = None, self._search_sdists(requirement, working_set)
+                        while sdists:
+                            try:
+                                sdist = sdists.pop(0)
+                            except IndexError:
+                                break
+                            if sdist:
+                                try:
+                                    fdist = self._get_dist(sdist, working_set)
+                                except:
+                                    pass
+                                if fdist:
+                                    break
+                        if not fdist:
+                            raise
                     dist = self._install_distribution(fdist,
                                                       dest,
                                                       working_set,
