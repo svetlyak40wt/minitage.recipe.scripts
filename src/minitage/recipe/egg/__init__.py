@@ -134,6 +134,7 @@ class Recipe(common.MinitageCommonRecipe):
         # override recipe default and download into a subdir
         # minitage-cache/eggs
         # separate archives in downloaddir/minitage
+        self.lastlogs = []
         options['bin-directory'] = buildout['buildout']['bin-directory']
         self.download_cache = os.path.abspath(
             os.path.join(self.download_cache, 'eggs')
@@ -311,6 +312,11 @@ class Recipe(common.MinitageCommonRecipe):
         #env = pkg_resources.Environment(self.eggs_caches,
         #                                python=self.executable_version)
 
+        if self.lastlogs:
+            self.logger.info('-------------------------------------------------------')
+            for log in self.lastlogs:
+                self.logger.info(log)
+            self.logger.info('-------------------------------------------------------')
         return ['%s' % r for r in requirements], working_set
 
     def install_static_distributions(self,
@@ -871,16 +877,79 @@ extends = customversions.cfg
                             if sdist:
                                 try:
                                     fdist = self._get_dist(sdist, working_set)
+                                    self.lastlogs.append(
+                                        'Source distribution %s == %s from %s was installed '
+                                        'but it was not the first seen on the indexes '
+                                        'matching the requirement although it was the first valid.' % (
+                                            fdist.project_name,
+                                            fdist.version,
+                                            fdist.location
+                                        )
+                                    )
                                 except:
                                     pass
                                 if fdist:
                                     break
                         if not fdist:
                             raise
-                    dist = self._install_distribution(fdist,
-                                                      dest,
-                                                      working_set,
-                                                      already_installed_dependencies)
+                    try:
+                         dist = self._install_distribution(
+                             fdist,
+                             dest,
+                             working_set,
+                             already_installed_dependencies)
+                    except:
+                        # try to install the same distribution on other links,
+                        # eg when the download_url returns 404 or error
+                        sdist, sdists = None, self._search_sdists(requirement, working_set)
+                        while sdists:
+                            try:
+                                sdist = sdists.pop(0)
+                            except IndexError:
+                                break
+                            if sdist:
+                                # try to see if the fallback distribution was
+                                # not installed bvfore.
+                                dist, avail = self.inst._satisfied(
+                                    '%s==%s' % (
+                                        sdist.project_name,
+                                        sdist.versionrequirement
+                                    )
+                                )
+                                if not dist:
+                                    try:
+                                        fdist = self._get_dist(sdist, working_set)
+                                    except:
+                                        pass
+                                    if fdist:
+                                        try:
+                                            dist = self._install_distribution(
+                                                fdist,
+                                                dest,
+                                                working_set,
+                                                already_installed_dependencies
+                                            )
+                                            sdists = []
+                                            self.lastlogs.append(
+                                                'Distribution %s == %s from %s was installed '
+                                                'but it was not the first seen on the indexes '
+                                                'matching the requirement although it was the first valid.' % (
+                                                    dist.project_name,
+                                                    dist.version,
+                                                    dist.location
+                                                )
+                                            )
+                                            break
+                                        except:
+                                            self.lastlogs.append(
+                                                'Distribution %s == %s from %s is invalid.' % (
+                                                    fdist.project_name,
+                                                    fdist.version,
+                                                    fdist.location
+                                                )
+                                            )
+                        if not dist:
+                            raise
                     rname = requirement.project_name
                     # mark the distribution as installed
                     already_installed_dependencies[rname] = pkg_resources.Requirement.parse(

@@ -11,6 +11,8 @@ Minitage.recipe.egg:
     - In particular for eggs and url, now md5 urls are preferred.
     - Also when we can't download a distribution from somewhere, we try to
       fallback to other distributions which achieve the desired requirement
+    - In the same way, try to compile eggs from any other sdist fullfilling the
+      requirement if an error occurs on the first found.
 
 Minitage.recipe.cmmi:
 
