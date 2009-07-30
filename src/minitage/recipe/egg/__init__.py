@@ -64,12 +64,15 @@ def get_orig_version(version):
     return orig_versions_re.sub('', version)
 
 def get_requirement_version(requirement):
-    patched_egg, version = False, None
+    patched_egg, version= False, None
+    operators = ['=', '<', '<']
     for spec in requirement.specs:
         for item in spec:
             if PATCH_MARKER in item:
-                version = item
                 patched_egg = True
+        if len(spec) >= 2:
+            if spec[0] == '==':
+                version = spec[1]
     return version, patched_egg
 
 def get_first_dist(where):
@@ -474,16 +477,19 @@ class Recipe(common.MinitageCommonRecipe):
         for file in os.listdir(self.download_cache):
             path = os.path.join(self.download_cache, file)
             if os.path.isfile(path):
-                sdists.extend(
-                    setuptools.package_index.distros_for_url(path))
-            for distro in sdists:
-                env.add(distro)
+                dists = [d
+                         for d in setuptools.package_index.distros_for_url(path)]
+                if len(dists) > 1:
+                    dists = [ d for d in dists if d.version]
+                sdists.extend(dists)
+        #sdists = [d for d in sdists if not [
+        for distro in sdists:
+            env.add(distro)
         # last try, testing sources (very useful for offline mode
         # or when your egg is not indexed)
         avail = env.best_match(requirement, working_set)
         if avail:
             results.append(avail)
-        results = []
         if not results:
             # maybe we can get one on the available indexes !
             try:
@@ -522,7 +528,8 @@ class Recipe(common.MinitageCommonRecipe):
                 pass
             if not results:
                 raise zc.buildout.easy_install.MissingDistribution(
-                    requirement, working_set)
+                    requirement, working_set
+                )
         if results:
             for avail in results:
                 msg = 'We found a source distribution for \'%s\' in \'%s\'.'
@@ -576,7 +583,7 @@ class Recipe(common.MinitageCommonRecipe):
 
         # there we have dist or avail setted, weither the egg is alredy installed
         # both can be null is nothing is installed or downloaded right now.
-        # In this case, we just have the requirement availlabke
+        # In this case, we just have the requirement available
         v, patched_egg = get_requirement_version(requirement)
         patches = []
         # Try to get the possibles patch for the project if this is the relevant
@@ -665,7 +672,9 @@ class Recipe(common.MinitageCommonRecipe):
                         except Exception, e:
                             # egg from url, needing patch !
                             if version.startswith(PATCH_MARKER):
-                                requirement = pkg_resources.Requirement.parse(requirement.project_name)
+                                requirement = pkg_resources.Requirement.parse(
+                                    requirement.project_name
+                                )
                             else:
                                 raise
                         avail = self._search_sdist(requirement, working_set)
@@ -702,12 +711,13 @@ class Recipe(common.MinitageCommonRecipe):
             '%s==%s' % (name, version)
         )
         if not os.path.exists(cfg):
-            self.logger.error("""
-
-It seems you are not using buildout.cfg as configuration file, as we have no mean to determine the buldout config file at runtime, you ll have to fix the version your self by adding : \n
-[buildout]
-extends = customversions.cfg
-""")
+            self.logger.error(
+                'It seems you are not using buildout.cfg'
+                ' as configuration file, as we have no'
+                ' mean to determine the bIuldout config file at runtime,\n'
+                'you ll have to fix the version your self by adding : \n'
+                '[buildout]\n'
+                'extends = customversions.cfg')
             cfg = os.path.join(self.buildout._buildout_dir, 'customversions.cfg')
 
         versions_part = self.buildout.get('buildout', {}).get('versions', 'versions')
@@ -720,13 +730,11 @@ extends = customversions.cfg
             config.set('buildout', 'versions', versions_part)
             if not config.has_section(versions_part):
                 config.add_section(versions_part)
-
             existing_version = None
             try:
                 existing_version = config.get(versions_part, name).strip()
             except NoOptionError:
                 pass
-
             # only if version changed
             if existing_version != version:
                 config.set(versions_part, requirement.project_name, version)
@@ -893,12 +901,13 @@ extends = customversions.cfg
                         if not fdist:
                             raise
                     try:
-                         dist = self._install_distribution(
-                             fdist,
-                             dest,
-                             working_set,
-                             already_installed_dependencies)
-                    except:
+                        dist = self._install_distribution(
+                            fdist,
+                            dest,
+                            working_set,
+                            already_installed_dependencies
+                        )
+                    except Exception, e:
                         # try to install the same distribution on other links,
                         # eg when the download_url returns 404 or error
                         sdist, sdists = None, self._search_sdists(requirement, working_set)
@@ -911,9 +920,11 @@ extends = customversions.cfg
                                 # try to see if the fallback distribution was
                                 # not installed bvfore.
                                 dist, avail = self.inst._satisfied(
-                                    '%s==%s' % (
-                                        sdist.project_name,
-                                        sdist.versionrequirement
+                                    pkg_resources.Requirement.parse(
+                                        '%s==%s' % (
+                                            sdist.project_name,
+                                            sdist.version
+                                        )
                                     )
                                 )
                                 if not dist:
@@ -929,25 +940,30 @@ extends = customversions.cfg
                                                 working_set,
                                                 already_installed_dependencies
                                             )
-                                            sdists = []
+                                        except Exception, e:
                                             self.lastlogs.append(
-                                                'Distribution %s == %s from %s was installed '
-                                                'but it was not the first seen on the indexes '
-                                                'matching the requirement although it was the first valid.' % (
-                                                    dist.project_name,
-                                                    dist.version,
-                                                    dist.location
-                                                )
-                                            )
-                                            break
-                                        except:
-                                            self.lastlogs.append(
-                                                'Distribution %s == %s from %s is invalid.' % (
+                                                'Distribution %s == %s from %s'
+                                                ' is invalid. (%s)' % (
                                                     fdist.project_name,
                                                     fdist.version,
-                                                    fdist.location
+                                                    fdist.location,
+                                                    e
                                                 )
                                             )
+                                # either the distribution was already there or
+                                # was just installed, stop the loop and
+                                # advertise user of the fallback.
+                                if dist:
+                                    sdists = []
+                                    self.lastlogs.append(
+                                        'Distribution %s == %s from %s was installed '
+                                        'but it was not the first seen on the indexes '
+                                        'matching the requirement although it was the first valid.' % (
+                                            dist.project_name,
+                                            dist.version,
+                                            dist.location
+                                        )
+                                    )
                         if not dist:
                             raise
                     rname = requirement.project_name
