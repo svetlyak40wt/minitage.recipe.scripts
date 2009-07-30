@@ -482,7 +482,6 @@ class Recipe(common.MinitageCommonRecipe):
                 if len(dists) > 1:
                     dists = [ d for d in dists if d.version]
                 sdists.extend(dists)
-        #sdists = [d for d in sdists if not [
         for distro in sdists:
             env.add(distro)
         # last try, testing sources (very useful for offline mode
