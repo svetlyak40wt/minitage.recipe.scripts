@@ -85,7 +85,8 @@ class Recipe(egg.Recipe):
         file_content = "\n\n[versions]\n"
         envreqs = []
         for dist in list(set(required_dists)):
-           envreqs.append("%s=%s" % (dist.project_name, dist.version))
+            if dist.version != '0.0':
+                envreqs.append("%s=%s" % (dist.project_name, dist.version))
         envreqs.sort()
         file_content += '\n'.join(envreqs)
         file_content += '\n\n[buildout]\nversions=versions\n\n'
