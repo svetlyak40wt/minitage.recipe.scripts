@@ -64,10 +64,16 @@ Options
         A patch to apply, compatibility with zc.recipe.cmmi
     - location
         where to put the build result. (default to parts/PART_NAME)
-    - includes
-        CFLAGS to give to the compiler [see cmmi recipe for documentation]
+    - includes:
+        directories to add to the include search (compatibility)
+    - ldflags
+        LDFLAGS to set at compilation time
+    - cflags
+        CFLAGS to give to the compiler
     - includes-dirs
         Directories to add to the include paths  [see cmmi recipe for documentation]
+    - libraries:
+        libraries to give to the linker eg: libiconv
     - library-dirs
         Directories to add to the linker, and they will be added as -rpath too. [see cmmi recipe for documentation]
     - environment

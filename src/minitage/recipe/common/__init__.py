@@ -230,6 +230,14 @@ class MinitageCommonRecipe(object):
 
         # compilation flags
         self.includes = splitstrip(self.options.get('includes', ''))
+        self.cflags = RESPACER(
+            ' ',
+            self.options.get( 'cflags', '').replace('\n', '')
+        ).strip()
+        self.ldflags = RESPACER(
+            ' ',
+            self.options.get( 'ldflags', '').replace('\n', '')
+        ).strip()
         self.includes += splitstrip(self.options.get('includes-dirs', ''))
         self.libraries = splitstrip(self.options.get('library-dirs', ''))
         self.libraries_names = ' '
@@ -827,6 +835,10 @@ class MinitageCommonRecipe(object):
     def _set_compilation_flags(self):
         """Set CFALGS/LDFLAGS."""
         self.logger.info('Setting compilation flags')
+        os.environ['CFLAGS']  = ' '.join([os.environ.get('CFLAGS', ''),
+                                          '  %s' % self.cflags]).strip()
+        os.environ['LDFLAGS']  = ' '.join([os.environ.get('LDFLAGS', '')
+                                           , '  %s' % self.ldflags]).strip()
         if self.rpath:
             os.environ['LD_RUN_PATH'] = appendVar(
                 os.environ.get('LD_RUN_PATH', ''),
