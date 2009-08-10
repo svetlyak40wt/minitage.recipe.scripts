@@ -73,6 +73,8 @@ class Recipe(common.MinitageCommonRecipe):
 
             # get default compilation directory
             self.compil_dir = self._get_compil_dir(self.tmp_directory)
+            if self.inner_dir:
+              self.compil_dir = self._get_compil_dir(self.inner_dir)
 
             # set path
             self._set_path()

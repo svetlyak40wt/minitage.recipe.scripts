@@ -76,6 +76,7 @@ Options
         libraries to give to the linker eg: libiconv
     - library-dirs
         Directories to add to the linker, and they will be added as -rpath too. [see cmmi recipe for documentation]
+    - skip-flags: do not set CFLAGS/LDFLAGS/LD_RUN_PATH at all.
     - environment
         a part name where we can get key/values to add to the build environment [see cmmi recipe for documentation]
     - path

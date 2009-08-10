@@ -30,8 +30,18 @@
 __docformat__ = 'restructuredtext en'
 
 import os
+import shutil
+import tempfile
 from minitage.recipe import common
-from minitage.core.common import get_from_cache, system, splitstrip
+from minitage.core.common import get_from_cache, system, splitstrip, test_md5
+from minitage.core.unpackers import *
+from distutils.dir_util import copy_tree
+
+def dump_write(content, dump_path):
+    f = open(dump_path, 'w')
+    f.write(content)
+    f.close()
+
 
 class Recipe(common.MinitageCommonRecipe):
     """
@@ -40,23 +50,66 @@ class Recipe(common.MinitageCommonRecipe):
 
     def update(self):
         """update."""
+
         self.install()
 
     def install(self):
         """installs an egg
         """
+        self.cache = os.path.join(
+            self.buildout['buildout']['directory'],
+            'cache'
+        )
         directories = []
         self.logger.info('Start checkouts')
         for url, url_infos in self.urls.items():
             dest = url_infos.get('directory')
+            if not dest:
+                dest = os.path.basename(dest)
             if not dest.startswith('/'):
                 dest = os.path.join(
                     self.options['location'],
                     dest
                 )
-            fname = self._download(url=url,
-                                   destination=dest,
-                                   cache=False)
+            cache_fname = os.path.basename(url)
+            cache_downloaded = os.path.join(self.cache, cache_fname)
+            downloaded = False
+            fname = ''
+            if os.path.exists(cache_downloaded):
+                if test_md5(cache_downloaded, url_infos.get('revision', 1)):
+                    downloaded = True
+                    self.logger.info('%s is already downloaded' %
+                                     cache_downloaded)
+                    fname = cache_downloaded
+            if not downloaded:
+                fname = self._download(url=url,
+                                       destination=dest,
+                                       cache=False)
+
+            if ('unpack' in self.options):
+                try:
+                    # try to unpack
+                    f = IUnpackerFactory()
+                    u = f(fname)
+                    tmpdest = tempfile.mkdtemp()
+                    ftmpdest = tmpdest
+                    if u:
+                        if os.path.exists(dest):
+                            c = len(os.listdir(dest))
+                            if c > 1:
+                                shutil.rmtree(dest)
+                                os.makedirs(dest)
+                        u.unpack(fname, tmpdest)
+                        if not os.path.exists(self.cache):
+                            os.makedirs(self.cache)
+                        os.rename(fname, cache_downloaded)
+                        c = os.listdir(tmpdest)
+                        if len(c) == 1:
+                            ftmpdest = os.path.join(tmpdest, c[0])
+                        copy_tree(ftmpdest, dest)
+                        shutil.rmtree(tmpdest)
+                except Exception, e:
+                    message = 'Can\'t install file %s in its destination %s.'
             self.logger.info('Completed dowbload of %s in %s' % (url, dest))
             directories.append(fname)
         self.logger.info('Finnished checkouts')

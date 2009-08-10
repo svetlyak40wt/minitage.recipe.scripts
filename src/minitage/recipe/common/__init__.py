@@ -204,7 +204,7 @@ class MinitageCommonRecipe(object):
                                               options.get('name', self.name)
                                           )
                                          ))
-        self.prefix = options['location']
+        self.prefix = self.options.get('prefix', options['location'])
         if options.get("shared", "false").lower() == "true":
             pass
 
@@ -227,6 +227,8 @@ class MinitageCommonRecipe(object):
         self.minitage_dependencies = []
         # distutils python stuff
         self.minitage_eggs = []
+
+        self._skip_flags = self.options.get('skip-flags', False)
 
         # compilation flags
         self.includes = splitstrip(self.options.get('includes', ''))
@@ -305,6 +307,7 @@ class MinitageCommonRecipe(object):
         # if 'make-targets'  present, we get it line by line
         # and all target must be specified
         # We will default to make '' and make install
+        self.install_in_place = self.options.get('install-in-place')
         self.make_targets = splitstrip(
             self.options.get( 'make-targets', ' '),
             '\n'
@@ -356,6 +359,9 @@ class MinitageCommonRecipe(object):
 
         # build directory
         self.build_dir = self.options.get('build-dir', None)
+        self.inner_dir = self.options.get('inner-dir', None)
+        if self.inner_dir:
+          self.inner_dir = os.path.join(self.tmp_directory, self.inner_dir)
 
         # minitage specific
         # we will search for (priority order)
@@ -581,9 +587,14 @@ class MinitageCommonRecipe(object):
             )
             shutil.rmtree(self.tmp_directory)
 
+    def go_inner_dir(self):
+      if self.inner_dir:
+        os.chdir(self.inner_dir)
+
     def _autogen(self):
         """Run autogen script.
         """
+        self.go_inner_dir()
         cwd = os.getcwd()
         os.chdir(self.build_dir)
         if 'autogen' in self.options:
@@ -596,6 +607,7 @@ class MinitageCommonRecipe(object):
         """configure magic to runne with
         exotic configure systems.
         """
+        self.go_inner_dir()
         if self.build_dir:
             if not os.path.isdir(self.build_dir):
                 os.makedirs(self.build_dir)
@@ -617,6 +629,7 @@ class MinitageCommonRecipe(object):
         Argument
             - configure : the configure script
         """
+        self.go_inner_dir()
         cwd = os.getcwd()
         os.chdir(self.build_dir)
         if not 'noconfigure' in self.options:
@@ -632,6 +645,7 @@ class MinitageCommonRecipe(object):
 
     def _make(self, directory, targets):
         """Run make targets except install."""
+        self.go_inner_dir()
         cwd = os.getcwd()
         os.chdir(directory)
         if not 'nomake' in self.options:
@@ -646,15 +660,18 @@ class MinitageCommonRecipe(object):
     def _make_install(self, directory):
         """"""
         # moving and restoring if problem :)
+        self.go_inner_dir()
         cwd = os.getcwd()
         os.chdir(directory)
         tmp = '%s.old' % self.prefix
-        if os.path.isdir(self.prefix):
-            shutil.move(self.prefix, tmp)
-
         if not 'noinstall' in self.options:
+            if os.path.isdir(self.prefix):
+                copy_tree(self.prefix, tmp)
+            if not self.install_in_place:
+                shutil.rmtree(self.prefix)
             try:
-                os.makedirs(self.prefix)
+                if not os.path.exists(self.prefix):
+                    os.makedirs(self.prefix)
                 self._call_hook('pending-make-install-hook')
                 self._make(directory, self.install_targets)
             except Exception, e:
@@ -835,6 +852,11 @@ class MinitageCommonRecipe(object):
     def _set_compilation_flags(self):
         """Set CFALGS/LDFLAGS."""
         self.logger.info('Setting compilation flags')
+        if self._skip_flags:
+            self.logger.warning('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            self.logger.warning('!!! Build variable settings has been disabled !!!')
+            self.logger.warning('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            return
         os.environ['CFLAGS']  = ' '.join([os.environ.get('CFLAGS', ''),
                                           '  %s' % self.cflags]).strip()
         os.environ['LDFLAGS']  = ' '.join([os.environ.get('LDFLAGS', '')
@@ -998,6 +1020,7 @@ class MinitageCommonRecipe(object):
             - directory where we will compile.
         """
         self.logger.info('Guessing compilation directory')
+        self.go_inner_dir()
         contents = os.listdir(directory)
         # remove download dir
         if '.download' in contents:
@@ -1019,6 +1042,7 @@ class MinitageCommonRecipe(object):
     def _system(self, cmd):
         """Running a command."""
         self.logger.info('Running %s' % cmd)
+        self.go_inner_dir()
         p = subprocess.Popen(cmd, env=os.environ, shell=True)
         ret = 0
         try:

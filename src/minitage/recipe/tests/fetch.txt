@@ -21,6 +21,11 @@ Specific options
 
 * urls
   See the shared options for more information on how to set them.
+* For the static fetcher, you can precise md5sum in the 'revision' field.
+* set unpack to automaticly unpack a downloaded archive, like::
+    
+    [foo]
+    unpack=True
 
 Detailled documentation
 -------------------------

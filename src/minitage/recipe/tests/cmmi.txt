@@ -22,6 +22,15 @@ Abstract
 Specific options
 -----------------
 
+* inner-dir: change to inner directory before doing anything.
+* prefix: where to install (defaults to options:location)
+  Be warn that the content of the destination will be wiped before unless you
+  set 'install-in-place'
+* install-in-place: install over a previous installation instead of removing
+  the older install replacing it with the new 'makeinstall result'::
+
+    install-in-place=True
+
 * build-dir
     inner directory to execute the build dance [see cmmi recipe for documentation]
 * configure-options-UNAME

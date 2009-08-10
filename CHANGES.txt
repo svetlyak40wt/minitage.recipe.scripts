@@ -2,6 +2,29 @@
 CHANGELOG
 =======================
 
+UP
+---
+
+all:
+
+    - add ``ldflags`` and ``ldflags`` options
+
+minitage.recipe.cmmi:
+
+    - ``install-in-place`` option added and pivot on make install slightly
+      modified
+    - ``skip-flags`` option added
+    - ``prefix option added
+
+minitage.recipe.fetch:
+
+    - ``unpack`` option added
+    - md5sum un revision for static fetcher check added
+
+minitage.recipe.printer:
+
+    - remove fake eggs and develop eggs from fixed versions.
+
 -> 1.20
 ---------
 
