@@ -7,6 +7,8 @@ UP
 
 all:
 
+    - fix rst doc
+
     - add ``ldflags`` and ``ldflags`` options
 
 minitage.recipe.cmmi:
@@ -14,7 +16,7 @@ minitage.recipe.cmmi:
     - ``install-in-place`` option added and pivot on make install slightly
       modified
     - ``skip-flags`` option added
-    - ``prefix option added
+    - ``prefix`` option added
 
 minitage.recipe.fetch:
 
