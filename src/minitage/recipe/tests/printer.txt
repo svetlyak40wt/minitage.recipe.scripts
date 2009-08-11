@@ -7,7 +7,7 @@ minitage.recipe:printer
 Abstract
 -----------------
     - This recipe intends to install eggs and python software and on top of installed stuff, generating KGS (Known good Set) versions file.
-    - This will help you to pion all the eggs used by a specific application by generating nicely configs will all eggs pinned insude?
+    - This will help you to pin all the eggs used by a specific application by generating nicely configs with all eggs pinned insude?
     - This recipe inherit from minitage;recipe:egg.
 
 Specific options
