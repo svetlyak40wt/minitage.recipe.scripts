@@ -6,7 +6,7 @@ setupdir = os.path.abspath(
 os.chdir(setupdir)
 
 name='minitage.recipe'
-version = '1.34'
+version = '1.35'
 
 def read(*rnames):
     return open(
@@ -16,21 +16,7 @@ def read(*rnames):
 long_description = (
     read('README.txt')
     + '\n'\
-    + read('src', 'minitage', 'recipe', 'tests', 'shared.txt')
-    + '\n'
     + read('src', 'minitage', 'recipe', 'tests', 'scripts.txt')
-    + '\n'
-    + read('src', 'minitage', 'recipe', 'tests', 'egg.txt')
-    + '\n'
-    + read('src', 'minitage', 'recipe', 'tests', 'cmmi.txt')
-    + '\n'
-    + read('src', 'minitage', 'recipe', 'tests', 'fetch.txt')
-    + '\n'
-    + read('src', 'minitage', 'recipe', 'tests', 'printer.txt')
-    + '\n'
-    + read('src', 'minitage', 'recipe', 'tests', 'wsgi.txt')
-    + '\n'
-    + read('src', 'minitage', 'recipe', 'tests', 'api.txt')
     + '\n'
     + read('CHANGES.txt')
     + '\n'
@@ -59,13 +45,15 @@ setup(
     license='BSD',
     packages=find_packages('src'),
     package_dir = {'': 'src'},
-    namespace_packages=['minitage', name],
+    namespace_packages=['minitage', 'minitage.recipe', name],
     include_package_data=True,
     zip_safe=False,
     install_requires = [
         'zc.buildout',
         'setuptools',
         'minitage.core',
+        'minitage.recipe.common',
+        'minitage.recipe.egg',
         'iniparse',
     ],
     extras_require={'test': ['IPython', 'zope.testing', 'mocker']},
@@ -76,17 +64,10 @@ setup(
     # workaround when using the 2 recipes in the same buildout.
     entry_points = {
         'zc.buildout' : [
-            'default = %s:Recipe' % name,
-            'du = %s:Recipe' % 'minitage.recipe.du',
-            'fetch = %s:Recipe' % 'minitage.recipe.fetch',
-            'egg = %s:Recipe' % 'minitage.recipe.egg',
-            'printer = %s:Recipe' % 'minitage.recipe.printer',
-            'zdu = %s:Recipe' % 'minitage.recipe.du',
-            'cmmi = %s:Recipe' % 'minitage.recipe.cmmi',
-            'scripts = %s:Recipe' % 'minitage.recipe.scripts',
-            'script = %s:Recipe' % 'minitage.recipe.scripts',
-            'eggs = %s:Recipe' % 'minitage.recipe.scripts',
-            'wsgi = %s:Recipe' % 'minitage.recipe.wsgi',
+            'scripts = %s:Recipe' % 'minitage.recipe.scripts.scripts',
+            'default = %s:Recipe' % 'minitage.recipe.scripts.scripts',
+            'script = %s:Recipe' % 'minitage.recipe.scripts.scripts',
+            'eggs = %s:Recipe' % 'minitage.recipe.scripts.scripts',
         ]
     },
 )
