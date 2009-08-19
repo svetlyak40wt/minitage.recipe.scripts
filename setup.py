@@ -52,7 +52,6 @@ setup(
         'zc.buildout',
         'setuptools',
         'minitage.core',
-        'minitage.recipe.common',
         'minitage.recipe.egg',
         'iniparse',
     ],

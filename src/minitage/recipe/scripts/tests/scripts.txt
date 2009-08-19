@@ -1,6 +1,6 @@
 
 ===============================================
-minitage.recipe:scripts
+minitage.recipe.scripts
 ===============================================
 
 
@@ -112,7 +112,7 @@ Thus by not specifying any scripts entry in the buildout part.
     ... download-cache=${buildout:directory}/dl
     ... parts = part
     ... [part]
-    ... recipe=minitage.recipe:scripts
+    ... recipe=minitage.recipe.scripts
     ... find-links=%(index)s
     ... eggs=foo
     ... """%{'index': index_url}
@@ -164,7 +164,7 @@ Installing only s.
     ... download-cache=${buildout:directory}/dl
     ... parts = part
     ... [part]
-    ... recipe=minitage.recipe:scripts
+    ... recipe=minitage.recipe.scripts
     ... find-links=%(index)s
     ... scripts =
     ...     s
@@ -182,7 +182,7 @@ Installing only toto.py.
     ... download-cache=${buildout:directory}/dl
     ... parts = part
     ... [part]
-    ... recipe=minitage.recipe:scripts
+    ... recipe=minitage.recipe.scripts
     ... find-links=%(index)s
     ... scripts =
     ...     toto.py
@@ -201,7 +201,7 @@ Installing only toto.py.
 ..     ... download-cache=${buildout:directory}/dl
 ..     ... parts = part
 ..     ... [part]
-..     ... recipe=minitage.recipe:scripts
+..     ... recipe=minitage.recipe.scripts
 ..     ... find-links=%(index)s
 ..     ... scripts =
 ..     ...     foo
@@ -221,7 +221,7 @@ We ll add an entry point 't' to be generated.
     ... download-cache=${buildout:directory}/dl
     ... parts = part
     ... [part]
-    ... recipe=minitage.recipe:scripts
+    ... recipe=minitage.recipe.scripts
     ... find-links=%(index)s
     ... entry-points=t=toto.toto:f
     ... eggs=foo
@@ -240,7 +240,7 @@ What about adding environment variables for gis env.
     ... download-cache=${buildout:directory}/dl
     ... parts = part
     ... [part]
-    ... recipe=minitage.recipe:scripts
+    ... recipe=minitage.recipe.scripts
     ... find-links=%(index)s
     ... entry-points=t=toto.toto:f
     ... eggs=foo
@@ -262,7 +262,7 @@ What about adding arguments to our launchers.
     ... download-cache=${buildout:directory}/dl
     ... parts = part
     ... [part]
-    ... recipe=minitage.recipe:scripts
+    ... recipe=minitage.recipe.scripts
     ... find-links=%(index)s
     ... eggs = foo
     ... entry-points=t=toto.toto:f
@@ -284,7 +284,7 @@ Here is how you can generate a specific python interpreter will all the environe
     ... download-cache=${buildout:directory}/dl
     ... parts = part
     ... [part]
-    ... recipe=minitage.recipe:scripts
+    ... recipe=minitage.recipe.scripts
     ... find-links=%(index)s
     ... interpreter = mypy
     ... arguments = ['a', 'b']
@@ -312,7 +312,7 @@ Here is how you can generate a specific envrionment file that you can source fro
     ... download-cache=${buildout:directory}/dl
     ... parts = part
     ... [part]
-    ... recipe=minitage.recipe:scripts
+    ... recipe=minitage.recipe.scripts
     ... find-links=%(index)s
     ... env-file = mypy
     ... eggs=foo

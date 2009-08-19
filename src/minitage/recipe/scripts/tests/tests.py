@@ -19,9 +19,6 @@ from zc.buildout import buildout as bo
 from zc.buildout.testing import start_server, _start_server, stop_server
 from setuptools.package_index import PackageIndex
 
-from minitage.recipe.common import divide_url
-
-
 
 def get_uname():
     if 'linux' in sys.platform:

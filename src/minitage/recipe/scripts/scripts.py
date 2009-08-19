@@ -38,7 +38,7 @@ import stat
 import pkg_resources
 import zc.buildout.easy_install
 
-from minitage.recipe import egg
+from minitage.recipe.egg import egg
 from minitage.core.common import get_from_cache, system, splitstrip
 parse_entry_point = re.compile(
         '([^=]+)=(\w+(?:[.]\w+)*):(\w+(?:[.]\w+)*)$'
