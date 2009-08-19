@@ -5,8 +5,8 @@ setupdir = os.path.abspath(
 )
 os.chdir(setupdir)
 
-name='minitage.recipe'
-version = '1.35'
+name='minitage.recipe.scripts'
+version = '1.36'
 
 def read(*rnames):
     return open(
@@ -16,7 +16,7 @@ def read(*rnames):
 long_description = (
     read('README.txt')
     + '\n'\
-    + read('src', 'minitage', 'recipe', 'tests', 'scripts.txt')
+    + read('src', 'minitage', 'recipe', 'scripts', 'tests', 'scripts.txt')
     + '\n'
     + read('CHANGES.txt')
     + '\n'
@@ -63,8 +63,8 @@ setup(
     # workaround when using the 2 recipes in the same buildout.
     entry_points = {
         'zc.buildout' : [
-            'scripts = %s:Recipe' % 'minitage.recipe.scripts.scripts',
             'default = %s:Recipe' % 'minitage.recipe.scripts.scripts',
+            'scripts = %s:Recipe' % 'minitage.recipe.scripts.scripts',
             'script = %s:Recipe' % 'minitage.recipe.scripts.scripts',
             'eggs = %s:Recipe' % 'minitage.recipe.scripts.scripts',
         ]

@@ -62,7 +62,7 @@ Let's create a buildout configuration file::
     >>> mkdir(tempdir)
     >>> cd(tempdir)
     >>> a = [mkdir(d) for d in ('eggs', 'develop-eggs', 'bin', 'src')]
-    >>> install_develop_eggs(['minitage.recipe'])
+    >>> install_develop_eggs(['minitage.recipe.scripts'])
     >>> install_eggs_from_pathes(['zc.buildout'], sys.path)
     >>> touch('buildout.cfg')
     >>> sh('buildout -o bootstrap')
