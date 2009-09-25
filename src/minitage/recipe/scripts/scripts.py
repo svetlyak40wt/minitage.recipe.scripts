@@ -104,6 +104,7 @@ class Recipe(egg.Recipe):
                 return True
         return False
 
+    @egg.dependency_resolver_decorator
     def install(self, working_set=None):
         """installs an egg
         """
@@ -135,6 +136,7 @@ class Recipe(egg.Recipe):
         reqs = [pkg_resources.Requirement.parse(r) for r in sreqs]
         env = pkg_resources.Environment(scan_paths, python = self.executable_version)
         required_dists = ws.resolve(reqs, env)
+
         for dist in required_dists:
             if not dist in ws:
                 ws.add(dist)
