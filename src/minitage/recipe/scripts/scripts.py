@@ -297,7 +297,7 @@ sys.exit(
 snv_template = """\
 #!/usr/bin/env sh
 
-PYTHONPATH="%(path)s:$PYTHONPATH"
+PYTHONPATH="%(path)s"
 export PYTHONPATH
 
 """
