@@ -3,7 +3,7 @@ CHANGELOG
 =======================
 
 
-1.40
+1.41
 -----
     
     - fix a special case where all scripts were filtered out

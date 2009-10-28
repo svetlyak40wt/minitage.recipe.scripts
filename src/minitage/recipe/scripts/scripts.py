@@ -100,7 +100,6 @@ class Recipe(egg.Recipe):
                             ) > 0
                         )
                        )
-        import pdb;pdb.set_trace()  ## Breakpoint ##
         if not (name in self.zap):
             if (
                 ((not entry_points_options)
