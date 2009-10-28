@@ -90,10 +90,21 @@ class Recipe(egg.Recipe):
             else:
                 return False
 
+        dist_in_eggs = (dist.project_name in self.eggs 
+                        or (
+                            len(
+                                [a 
+                                 for a in self.eggs
+                                 if a.startswith('%s==' % dist.project_name)
+                                ]
+                            ) > 0
+                        )
+                       )
+        import pdb;pdb.set_trace()  ## Breakpoint ##
         if not (name in self.zap):
             if (
                 ((not entry_points_options)
-                 and (not arguments)
+                 and (not (arguments and not dist_in_eggs))
                  and (not ('scripts' in self.options)))
                 or (name in console_scripts)
                 or (bool(self.for_buildoutscripts)
