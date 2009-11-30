@@ -50,7 +50,7 @@ setup(
     zip_safe=False,
     install_requires = [
         'zc.buildout',
-        
+
         'minitage.core',
         'minitage.recipe.egg',
         'iniparse',
