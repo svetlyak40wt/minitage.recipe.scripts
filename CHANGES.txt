@@ -3,6 +3,12 @@ CHANGELOG
 =======================
 
 
+1.44
+-----
+
+	- when both EntryPoint and Script have the same name, it's the EP which wins.
+
+
 1.41
 -----
     

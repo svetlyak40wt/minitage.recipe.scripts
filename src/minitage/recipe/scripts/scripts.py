@@ -185,6 +185,7 @@ class Recipe(egg.Recipe):
                 scripts[entry[0]] = entry[0]
 
         # scan eggs for entry point keys
+        consumed_ep = []
         for dist in ws:
             for name in pkg_resources.get_entry_map(dist, 'console_scripts'):
                 if self.filter(dist, name,
@@ -192,6 +193,7 @@ class Recipe(egg.Recipe):
                                console_scripts):
                     scripts.setdefault(name, name)
                     entry_point = dist.get_entry_info('console_scripts', name)
+                    consumed_ep.append(name)
                     entry_points.append(
                         (name, entry_point.module_name,
                          '.'.join(entry_point.attrs))
@@ -242,7 +244,7 @@ class Recipe(egg.Recipe):
             for script in items:
                 if self.filter(dist, script,
                                entry_points_options, arguments,
-                               console_scripts):
+                               console_scripts) and (not script in consumed_ep):
                     # mean to filter by dist, even if the dist doesnt provide
                     # console scripts ;), just add dist.project_name in the
                     # scripts section
