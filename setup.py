@@ -6,7 +6,7 @@ setupdir = os.path.abspath(
 os.chdir(setupdir)
 
 name='minitage.recipe.scripts'
-version = '1.42'
+version = '1.43'
 
 def read(*rnames):
     return open(

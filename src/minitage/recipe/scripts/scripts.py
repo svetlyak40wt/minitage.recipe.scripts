@@ -254,7 +254,7 @@ class Recipe(egg.Recipe):
                     script_vars.update({'code': script_filename})
                     code = script_template % script_vars
                     sname = scripts.get(script, script)
-                    installed_scripts[sname] = inst_script, code
+                    installed_scripts[sname] = sname, code
 
         ls = []
         for script in installed_scripts:
