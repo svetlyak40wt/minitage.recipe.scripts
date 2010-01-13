@@ -43,7 +43,10 @@ from minitage.core.common import get_from_cache, system, splitstrip
 parse_entry_point = re.compile(
         '([^=]+)=(\w+(?:[.]\w+)*):(\w+(?:[.]\w+)*)$'
         ).match
-
+re_flags = re.U|re.M|re.S|re.X
+template_replacements = {
+    re.compile('\\\\t', re_flags): '    ', # \t -> '    '
+}
 class Recipe(egg.Recipe):
     """
     Downloads and installs a distutils Python distribution.
@@ -61,6 +64,13 @@ class Recipe(egg.Recipe):
         self.options_scripts = self.options.get('scripts', '')
         self.entry_points_options = self.options.get('entry-points', '').strip()
         self.interpreter = self.options.get('interpreter', '').strip()
+        template_replacements_opt = self.options.get('template-replacements', '')
+        self.template_replacements = template_replacements.copy()
+        for k in template_replacements_opt.split('\n'):
+            if ' => ' in k:
+                rep, value = k.split(' => ')
+                self.template_replacements[re.compile(rep, re_flags)] = value
+
         self.env_file = self.options.get('env-file', '').strip()
         self.bin = self.buildout['buildout'].get('bin-directory',
                                                  os.path.join(os.getcwd(), 'bin'))
@@ -296,7 +306,14 @@ class Recipe(egg.Recipe):
             overridden_var = '%s-%s' % (script_name, var)
             if overridden_var in self.options:
                 res[var] = self.options[overridden_var]
+        for key in ['initialization', 'env_initialization', 'arguments']:                
+            if key in res:
+                for rep in self.template_replacements:
+                    if rep.search(res[key]):
+                       res[key] = rep.sub(self.template_replacements[rep], res[key])
         return res        
+
+
 
 script_template = """\
 #!%(python)s

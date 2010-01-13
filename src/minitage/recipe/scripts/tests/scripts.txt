@@ -53,6 +53,14 @@ Specific options
         Python code to run prior to call the entry point
     * env_initialization
 	     run code after initialization of env (shell)
+    * template-replacements
+	    replacements for variables values in templates to override buildout's strip mecanism  (initialization, env_initialization, arguments)
+        Spaces before and after => are important::
+		Pattern are in the form::
+
+			re-pattern => value
+		 
+
 	
 
 Detailled documentation
