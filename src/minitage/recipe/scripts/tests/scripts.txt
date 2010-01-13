@@ -47,11 +47,13 @@ Specific options
         The name of a script to generate that allow access to the Python interpreter with the PYTHONPATH set with all the working set entries.
     * dependent-scripts
         compatibility option, has no effect
-    * arguments
+    * (script-name|interpretername-)arguments
         Specify some arguments to be passed to entry points as Python source.
-    * initialization
+    * (script-name|interpretername-)initialization
         Python code to run prior to call the entry point
-
+    * env_initialization
+	     run code after initialization of env (shell)
+	
 
 Detailled documentation
 -------------------------

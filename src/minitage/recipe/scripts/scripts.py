@@ -57,6 +57,7 @@ class Recipe(egg.Recipe):
         # integration with buildout.minitagificator
         self.for_buildoutscripts = options.get('buildoutscripts', getattr(self, 'for_patchs',False))
         self.initialization = self.options.get('initialization', '')
+        self.env_initialization = self.options.get('env_initialization', '')
         self.options_scripts = self.options.get('scripts', '')
         self.entry_points_options = self.options.get('entry-points', '').strip()
         self.interpreter = self.options.get('interpreter', '').strip()
@@ -154,6 +155,7 @@ class Recipe(egg.Recipe):
                   for p in ws.entries+self.extra_paths
                   if os.path.exists(p)]
         abs_pypath = pypath[:]
+
         rpypath, rsetup = pypath, ''
         if self._relative_paths:
             rpypath, rsetup = zc.buildout.easy_install._relative_path_and_setup(
@@ -168,7 +170,9 @@ class Recipe(egg.Recipe):
                          'path': rpypath,
                          'rsetup': rsetup,
                          'arguments': arguments,
-                         'initialization': self.initialization,}
+                         'initialization': self.initialization,
+                         'env_initialization': self.env_initialization,
+                         }
 
         # parse entry points key
         for s in [item
@@ -193,7 +197,7 @@ class Recipe(egg.Recipe):
                                console_scripts):
                     scripts.setdefault(name, name)
                     entry_point = dist.get_entry_info('console_scripts', name)
-                    consumed_ep.append(name)
+                    #consumed_ep.append(name)
                     entry_points.append(
                         (name, entry_point.module_name,
                          '.'.join(entry_point.attrs))
@@ -202,16 +206,17 @@ class Recipe(egg.Recipe):
         # generate interpreter
         interpreter = self.interpreter
         if interpreter:
+            interpreter_vars = self.get_script_vars(template_vars, interpreter)
             inst_script = os.path.join(bin, interpreter)
             installed_scripts[interpreter] = inst_script, py_script_template % template_vars
 
         if self.env_file:
-            env_vars= template_vars.copy()
+            env_vars = self.get_script_vars(template_vars, os.path.basename(self.env_file))
             env_vars['path'] = ':'.join(abs_pypath)
             env_script = self.env_file
             if not '/' in self.env_file:
                 env_script = os.path.join(bin, self.env_file)
-            installed_scripts[env_script] = env_script, snv_template % env_vars
+            installed_scripts[env_script] = env_script, env_template % env_vars
 
         # generate console entry pointts
         for name, module_name, attrs in entry_points:
@@ -220,7 +225,7 @@ class Recipe(egg.Recipe):
                 sname = scripts.get(name)
                 if sname is None:
                     continue
-            entry_point_vars = template_vars.copy()
+            entry_point_vars = self.get_script_vars(template_vars, sname)
             entry_point_vars.update(
                 {'module_name':  module_name,
                  'attrs': attrs,})
@@ -244,19 +249,24 @@ class Recipe(egg.Recipe):
             for script in items:
                 if self.filter(dist, script,
                                entry_points_options, arguments,
-                               console_scripts) and (not script in consumed_ep):
-                    # mean to filter by dist, even if the dist doesnt provide
+                               console_scripts):
+                    # mean to filter by dist, even if the distudoesnt provide
                     # console scripts ;), just add dist.project_name in the
                     # scripts section
                     if dist.project_name in console_scripts:
-                        scripts.setdefault(name, name)
+                        scripts.setdefault(script, script)
+                    sname = scripts.get(script, script)
+                    # install the script if it exists an entry point which
+                    # have generated the same script name with a prefixed cs.
+                    destName = sname
+                    if sname in installed_scripts:
+                        destName = 'cs.%s' % sname
                     script_filename = items[script]
-                    inst_script = os.path.join(bin,os.path.split(script_filename)[1])
-                    script_vars = template_vars.copy()
+                    inst_script = os.path.join(bin, destName)
+                    script_vars = self.get_script_vars(template_vars, destName)
                     script_vars.update({'code': script_filename})
                     code = script_template % script_vars
-                    sname = scripts.get(script, script)
-                    installed_scripts[sname] = sname, code
+                    installed_scripts[destName] = inst_script, code
 
         ls = []
         for script in installed_scripts:
@@ -278,6 +288,15 @@ class Recipe(egg.Recipe):
             )
         self.logger.info(msg)
         return installed_scripts.keys()
+
+
+    def get_script_vars(self, base_vars, script_name):
+        res = base_vars.copy()
+        for var in base_vars:
+            overridden_var = '%s-%s' % (script_name, var)
+            if overridden_var in self.options:
+                res[var] = self.options[overridden_var]
+        return res        
 
 script_template = """\
 #!%(python)s
@@ -306,11 +325,13 @@ sys.exit(
 )
 
 """
-snv_template = """\
+env_template = """\
 #!/usr/bin/env sh
 
 PYTHONPATH="%(path)s"
 export PYTHONPATH
+
+%(env_initialization)s
 
 """
 

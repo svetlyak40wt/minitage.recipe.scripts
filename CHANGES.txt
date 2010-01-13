@@ -3,6 +3,12 @@ CHANGELOG
 =======================
 
 
+1.45
+----
+
+	- better handle of entrypoints/console script conflict options (cs. prefix, see code)
+	- add per script options (initialization, argurments, python)
+
 1.44
 -----
 
