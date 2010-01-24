@@ -46,7 +46,7 @@ Specific options
     * interpreter
         The name of a script to generate that allow access to the Python interpreter with the PYTHONPATH set with all the working set entries.
     * dependent-scripts
-        compatibility option, has no effect
+      When set to true, scripts will be generated for all required eggs in addition to the eggs named specifically. This idea came from two forks of this recipe, repoze.recipe.egg and pylons_sandbox, but the option name is spelled with a dash instead of underscore and it defaults to false.
     * (script-name|interpretername-)arguments
         Specify some arguments to be passed to entry points as Python source.
     * (script-name|interpretername-)initialization

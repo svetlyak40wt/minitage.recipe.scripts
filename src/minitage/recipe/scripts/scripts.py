@@ -64,6 +64,7 @@ class Recipe(egg.Recipe):
         self.options_scripts = self.options.get('scripts', '')
         self.entry_points_options = self.options.get('entry-points', '').strip()
         self.interpreter = self.options.get('interpreter', '').strip()
+        self.dependent_scripts = bool(self.options.get('dependent-scripts', '').strip())
         template_replacements_opt = self.options.get('template-replacements', '')
         self.template_replacements = template_replacements.copy()
         for k in template_replacements_opt.split('\n'):
@@ -101,16 +102,19 @@ class Recipe(egg.Recipe):
             else:
                 return False
 
-        dist_in_eggs = (dist.project_name in self.eggs 
+        dist_in_eggs = (dist.project_name in self.eggs
                         or (
                             len(
-                                [a 
+                                [a
                                  for a in self.eggs
                                  if a.startswith('%s==' % dist.project_name)
                                 ]
                             ) > 0
                         )
                        )
+        if not self.dependent_scripts:
+            if not dist.project_name in self.eggs:
+                return False
         if not (name in self.zap):
             if (
                 ((not entry_points_options)
@@ -306,12 +310,12 @@ class Recipe(egg.Recipe):
             overridden_var = '%s-%s' % (script_name, var)
             if overridden_var in self.options:
                 res[var] = self.options[overridden_var]
-        for key in ['initialization', 'env_initialization', 'arguments']:                
+        for key in ['initialization', 'env_initialization', 'arguments']:
             if key in res:
                 for rep in self.template_replacements:
                     if rep.search(res[key]):
                        res[key] = rep.sub(self.template_replacements[rep], res[key])
-        return res        
+        return res
 
 
 

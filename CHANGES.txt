@@ -3,6 +3,12 @@ CHANGELOG
 =======================
 
 
+
+1.47
+------
+
+    - Added the dependent-scripts option to stick to zc.recipe.egg
+
 1.45
 ----
 
@@ -17,7 +23,7 @@ CHANGELOG
 
 1.41
 -----
-    
+
     - fix a special case where all scripts were filtered out
 
 1.39
