@@ -112,10 +112,16 @@ class Recipe(egg.Recipe):
                             ) > 0
                         )
                        )
-        if not self.dependent_scripts:
-            if not dist.project_name in self.eggs:
-                return False
+
         if not (name in self.zap):
+            if not self.dependent_scripts:
+                if not dist.project_name in self.eggs:
+                    return False
+
+            if console_scripts:
+                if not name in console_scripts:
+                    return False
+
             if (
                 ((not entry_points_options)
                  and (not (arguments and not dist_in_eggs))
