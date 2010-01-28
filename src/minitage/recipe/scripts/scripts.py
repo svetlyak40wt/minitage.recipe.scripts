@@ -166,7 +166,22 @@ class Recipe(egg.Recipe):
         sreqs, ws = self.working_set(working_set=working_set)
         reqs = [pkg_resources.Requirement.parse(r) for r in sreqs]
         env = pkg_resources.Environment(scan_paths, python = self.executable_version)
-        required_dists = ws.resolve(reqs, env)
+        required_dists = []
+        try:
+            required_dists = ws.resolve(reqs, env)
+        except:
+            adists = []
+            # try to load from paths
+            # when they are versions conflicts, because the main source of them
+            # at this stage (and not before) are versions pinned in eggs
+            # directlry which we had overidden in buildout.cfg
+            for distpath in ws.entries:
+                dists = [a 
+                         for a in pkg_resources.find_distributions(distpath)]
+                for dist in dists:
+                    if not dist in adists:
+                        adists.append(dist)
+                        required_dists.append(dist)
 
         for dist in required_dists:
             if not dist in ws:
