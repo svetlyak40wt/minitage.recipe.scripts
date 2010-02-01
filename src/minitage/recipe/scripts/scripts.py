@@ -115,7 +115,8 @@ class Recipe(egg.Recipe):
 
         if not (name in self.zap):
             if not self.dependent_scripts:
-                if not dist.project_name in self.eggs:
+                if (not dist.project_name in self.eggs)\
+                and (not name in console_scripts):
                     return False
 
             if console_scripts:
@@ -176,7 +177,7 @@ class Recipe(egg.Recipe):
             # at this stage (and not before) are versions pinned in eggs
             # directlry which we had overidden in buildout.cfg
             for distpath in ws.entries:
-                dists = [a 
+                dists = [a
                          for a in pkg_resources.find_distributions(distpath)]
                 for dist in dists:
                     if not dist in adists:

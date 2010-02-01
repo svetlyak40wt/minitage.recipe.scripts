@@ -3,7 +3,7 @@ CHANGELOG
 =======================
 
 
-1.49
+1.50
 ------
 
     - workaround to install when there are conflicts from versions pinned in setup.py and different ones in buildout
