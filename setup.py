@@ -17,8 +17,8 @@ long_description = (
     read('README.txt')
     + '\n'\
     + read('src', 'minitage', 'recipe', 'scripts', 'tests', 'scripts.txt')
-    + 'Detailled documentation\n'+
-    + '-------------------------\n'+ 
+    + 'Detailled documentation\n' 
+    + '-------------------------\n' 
     + '\n'
     + read('src', 'minitage', 'recipe', 'scripts', 'tests', 'generation.txt')
     + '\n'    
