@@ -1,0 +1,28 @@
+Adding arguments
+++++++++++++++++++
+What about adding arguments to our launchers.
+::
+
+    >>> init_env()
+    >>> index_url = start_server(os.path.sep.join(tempdir))   
+    >>> data = """
+    ... [buildout]
+    ... eggs-directory =${buildout:directory}/eggs
+    ... download-cache=${buildout:directory}/dl
+    ... parts = part
+    ... [part]
+    ... recipe=minitage.recipe.scripts
+    ... find-links=%(index)s
+    ... eggs = foo
+    ... entry-points=t=toto.toto:f
+    ... arguments = ['a', 'b']
+    ... """%{'index': index_url}
+    >>> touch('buildout.cfg', data=data)
+    >>> sh('bin/buildout -vvvvv install')
+    b...
+
+::
+
+    >>> "toto.toto.f(['a', 'b'])" in open(os.path.join('bin', 't')).read()
+    True
+

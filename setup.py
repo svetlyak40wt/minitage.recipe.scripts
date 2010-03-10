@@ -6,7 +6,7 @@ setupdir = os.path.abspath(
 os.chdir(setupdir)
 
 name='minitage.recipe.scripts'
-version = '1.50'
+version = '1.51'
 
 def read(*rnames):
     return open(
@@ -17,6 +17,22 @@ long_description = (
     read('README.txt')
     + '\n'\
     + read('src', 'minitage', 'recipe', 'scripts', 'tests', 'scripts.txt')
+    + 'Detailled documentation\n'+
+    + '-------------------------\n'+ 
+    + '\n'
+    + read('src', 'minitage', 'recipe', 'scripts', 'tests', 'generation.txt')
+    + '\n'    
+    + read('src', 'minitage', 'recipe', 'scripts', 'tests', 'selection.txt')
+    + '\n'   
+    + read('src', 'minitage', 'recipe', 'scripts', 'tests', 'ep.txt')
+    + '\n'  
+    + read('src', 'minitage', 'recipe', 'scripts', 'tests', 'initialization.txt')
+    + '\n' 
+    + read('src', 'minitage', 'recipe', 'scripts', 'tests', 'arguments.txt')
+    + '\n' 
+    + read('src', 'minitage', 'recipe', 'scripts', 'tests', 'pi.txt')
+    + '\n' 
+    + read('src', 'minitage', 'recipe', 'scripts', 'tests', 'env.txt')
     + '\n'
     + read('CHANGES.txt')
     + '\n'

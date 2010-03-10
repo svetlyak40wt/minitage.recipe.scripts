@@ -1,0 +1,29 @@
+Adding initialization code
+++++++++++++++++++++++++++++
+What about adding environment variables for gis env.
+::
+
+    >>> init_env()
+    >>> index_url = start_server(os.path.sep.join(tempdir))   
+    >>> data = """
+    ... [buildout]
+    ... eggs-directory =${buildout:directory}/eggs
+    ... download-cache=${buildout:directory}/dl
+    ... parts = part
+    ... [part]
+    ... recipe=minitage.recipe.scripts
+    ... find-links=%(index)s
+    ... entry-points=t=toto.toto:f
+    ... eggs=foo
+    ... initialization = import os;os.environ.set('GDAL', 'TRUE')
+    ... """%{'index': index_url}
+    >>> touch('buildout.cfg', data=data)
+    >>> sh('bin/buildout -vvvvv install')
+    b...
+
+::
+
+    >>> "import os;os.environ.set('GDAL', 'TRUE')" in open(os.path.join('bin', 't')).read()
+    True
+
+

@@ -1,0 +1,35 @@
+Generating a python interpreter
+++++++++++++++++++++++++++++++++++
+Here is how you can generate a specific python interpreter will all the environement of the working set.
+::
+
+    >>> init_env()
+    >>> index_url = start_server(os.path.sep.join(tempdir))  
+    >>> data = """
+    ... [buildout]
+    ... eggs-directory =${buildout:directory}/eggs
+    ... download-cache=${buildout:directory}/dl
+    ... parts = part
+    ... [part]
+    ... recipe=minitage.recipe.scripts
+    ... find-links=%(index)s
+    ... interpreter = mypy
+    ... arguments = ['a', 'b']
+    ... eggs=foo
+    ... """%{'index': index_url}
+    >>> touch('buildout.cfg', data=data)
+    >>> sh('bin/buildout -vvvvv install')
+    b...
+    minitage.recipe: Generated scripts: 'mypy',...
+
+::
+
+    >>> cat('bin', 'mypy')
+    #!...
+    #!!! #GENERATED VIA MINITAGE.recipe !!!...
+    sys.path[0:0] = [ '/tmp/buildout.test/eggs/foo-1.0-py....egg' ]...
+    if _interactive:
+        import code
+        code.interact(banner="", local=globals())...
+
+

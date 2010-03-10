@@ -6,6 +6,7 @@ __docformat__ = 'restructuredtext'
 import unittest
 import doctest
 import sys
+from copy import deepcopy
 import os
 import shutil
 import popen2
@@ -19,6 +20,7 @@ from zc.buildout import buildout as bo
 from zc.buildout.testing import start_server, _start_server, stop_server
 from setuptools.package_index import PackageIndex
 
+BOOTSTRAP="http://svn.zope.org/*checkout*/zc.buildout/trunk/bootstrap/bootstrap.py"
 
 def get_uname():
     if 'linux' in sys.platform:
@@ -196,8 +198,9 @@ def doc_suite(test_dir, setUp=None, tearDown=None, globs=None):
     doctest_dir = test_dir
 
     # filtering files on extension
-    docs = [os.path.join(doctest_dir, doc) for doc in
-            os.listdir(doctest_dir) if doc.endswith('.txt')
+    docs = [os.path.join(doctest_dir, doc)
+            for doc in os.listdir(doctest_dir)
+            #if doc.endswith('initialization.txt')
            ]
 
     for ftest in docs:
@@ -208,6 +211,65 @@ def doc_suite(test_dir, setUp=None, tearDown=None, globs=None):
 
         suite.append(test)
     return unittest.TestSuite(suite)
+
+def execute(cmd, env=None, quiet=False):
+    if not env:
+        env = deepcopy(os.environ)
+    process = subprocess.Popen(cmd,
+                               env=env,
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE)
+    stdout, stderr = process.communicate()
+    ret = process.returncode
+    if not quiet:
+        print stdout
+        print stderr
+    return ret
+
+def qexecute(cmd, env=None, quiet=True):
+    return  execute(cmd, env, quiet=quiet)
+
+def init_env(path=tempdir):
+    if isinstance(path, list):
+        path = os.path.sep.join(path)
+    rmdir(path)
+    mkdir(path)
+    cd(path)
+    a = [mkdir(d) for d in ('eggs', 'develop-eggs', 'bin', 'src')]
+    install_develop_eggs(['minitage.recipe.scripts'])
+    install_eggs_from_pathes(['zc.buildout'], sys.path)
+    touch('buildout.cfg')
+    open('bootstrap.py', 'w').write(urllib2.urlopen(BOOTSTRAP).read())
+    qexecute([sys.executable, 'bootstrap.py', '-d'], quiet=True)
+    os.chdir(path)
+    if os.path.exists('dl'): rmdir('dl')
+    mkdir('dl')
+    if os.path.exists('foo'): rmdir('foo')
+    mkdir('foo')
+    mkdir('foo/src/toto')
+    touch('foo/setup.py', data="""
+from setuptools import setup, find_packages
+setup(name='foo', version='1.0',
+    packages=find_packages('src'),
+    package_dir = {'': 'src'},
+    include_package_data=True,
+    scripts=['src/toto/toto.py'],
+    entry_points={'console_scripts': ['s=toto.toto:f']},
+    )
+    """)
+    touch('foo/src/toto/__init__.py')
+    touch('foo/src/toto/toto.py', data="""
+def f():
+    print "foo"
+if __name__ == '__main__' :
+    print 'called'
+    """)
+    noecho = [os.remove(d) for d in os.listdir('.') if '.tar.gz' in d]
+    os.chdir('foo')
+    qexecute([sys.executable, 'setup.py', 'sdist'], quiet=True)
+    noecho = [shutil.copy(os.path.join('dist', d), os.path.join('..', d)) for d in os.listdir('dist')]
+    os.chdir('..')
+
 
 def test_suite():
     """returns the test suite"""

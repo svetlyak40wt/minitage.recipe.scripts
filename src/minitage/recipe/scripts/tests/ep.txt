@@ -1,0 +1,41 @@
+Declaring entry-points
++++++++++++++++++++++++
+We ll add an entry point 't' to be generated.
+::
+
+    >>> init_env()
+    >>> index_url = start_server(os.path.sep.join(tempdir))    
+    >>> data = """
+    ... [buildout]
+    ... eggs-directory =${buildout:directory}/eggs
+    ... download-cache=${buildout:directory}/dl
+    ... parts = part
+    ... [part]
+    ... recipe=minitage.recipe.scripts
+    ... find-links=%(index)s
+    ... entry-points=t=toto.toto:f
+    ... eggs=foo
+    ... """%{'index': index_url}
+    >>> touch('buildout.cfg', data=data)
+    >>> sh('bin/buildout -vvvvv install')
+    b...
+    minitage.recipe: Generated scripts: 't'...
+    >>> cat('bin', 't') #doctest: +REPORT_NDIFF
+    #!...
+    #!!! #GENERATED VIA MINITAGE.recipe !!!
+    <BLANKLINE>
+    import sys
+    <BLANKLINE>
+    <BLANKLINE>
+    <BLANKLINE>
+    sys.path[0:0] = [ '/tmp/buildout.test/eggs/foo-1.0-...
+    ...]
+    <BLANKLINE>
+    <BLANKLINE>
+    <BLANKLINE>
+    import toto.toto
+    <BLANKLINE>
+    if __name__ == '__main__':
+        toto.toto.f()
+    <BLANKLINE>
+

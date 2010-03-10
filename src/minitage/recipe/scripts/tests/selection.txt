@@ -1,0 +1,63 @@
+Selecting scripts to install
++++++++++++++++++++++++++++++++
+Installing only s.
+::
+
+    >>> init_env()
+    >>> index_url = start_server(os.path.sep.join(tempdir))    
+    >>> data = """
+    ... [buildout]
+    ... eggs-directory =${buildout:directory}/eggs
+    ... download-cache=${buildout:directory}/dl
+    ... parts = part
+    ... [part]
+    ... recipe=minitage.recipe.scripts
+    ... find-links=%(index)s
+    ... scripts =
+    ...     s
+    ... eggs=foo
+    ... """%{'index': index_url}
+    >>> touch('buildout.cfg', data=data)
+    >>> sh('bin/buildout -vvvvv install')
+    b...
+    minitage.recipe: Generated scripts: 's'...
+
+Installing only toto.py.
+::
+
+    >>> data = """
+    ... [buildout]
+    ... eggs-directory =${buildout:directory}/eggs
+    ... download-cache=${buildout:directory}/dl
+    ... parts = part
+    ... [part]
+    ... recipe=minitage.recipe.scripts
+    ... find-links=%(index)s
+    ... scripts =
+    ...     toto.py
+    ... eggs=foo
+    ... """%{'index': index_url}
+    >>> touch('buildout.cfg', data=data)
+    >>> sh('bin/buildout -vvvvv install')
+    b...
+    minitage.recipe: Generated scripts: 'toto.py'....
+
+.. desactivated because caused more harm than good... too much scripts no filtered
+.. Installing scripts from the foo distribution.
+..
+..     >>> data = """
+..     ... [buildout]
+..     ... download-cache=${buildout:directory}/dl
+..     ... parts = part
+..     ... [part]
+..     ... recipe=minitage.recipe.scripts
+..     ... find-links=%(index)s
+..     ... scripts =
+..     ...     foo
+..     ... eggs=foo
+..     ... """%{'index': index_url}
+..     >>> touch('buildout.cfg', data=data)
+..     >>> sh('bin/buildout -vvvvv install')
+..     b...
+..     minitage.recipe: Generated scripts: 's', 'toto.py'....
+
