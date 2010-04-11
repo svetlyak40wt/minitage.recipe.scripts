@@ -335,8 +335,15 @@ class Recipe(egg.Recipe):
         for key in ['initialization', 'env_initialization', 'arguments']:
             if key in res:
                 for rep in self.template_replacements:
-                    if rep.search(res[key]):
-                       res[key] = rep.sub(self.template_replacements[rep], res[key])
+                    data = res[key]
+                    if isinstance(data, basestring):
+                        if rep.search(data):
+                            res[key] = rep.sub(self.template_replacements[rep], data)
+                    elif isinstance(data, list):
+                        for i in range(len(data)):
+                            if isinstance(data[i], basestring):
+                                if rep.search(data[i]):
+                                    res[key][i] = rep.sub(self.template_replacements[rep], data[i])
         return res
 
 
