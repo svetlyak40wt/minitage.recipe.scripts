@@ -45,4 +45,12 @@ You can migrate your buldouts without any effort with buildout.minitagificator:
 
     * http://pypi.python.org/pypi/buildout.minitagificator
 
+======================================
+Makina Corpus Sponsorised software
+======================================
+
+  http://www.makina-corpus.com & http://makina-corpus.org
+
+    plone at makina-corpus org
+
 
