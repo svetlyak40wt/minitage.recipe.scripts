@@ -45,7 +45,7 @@ if 'RST_TEST' in os.environ:
 setup(
     name=name,
     version=version,
-    description="zc.buildout recipes to compile and install software or python packages and generate scripts or configuration files sponsorised by Makina Corpus.",
+    description="zc.buildout recipes to compile and install software or python packages and generate scripts or configuration files sponsored by Makina Corpus.",
     long_description= long_description,
     classifiers=[
         'Framework :: Buildout',
