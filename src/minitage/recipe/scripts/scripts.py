@@ -207,6 +207,7 @@ class Recipe(egg.Recipe):
                          'rsetup': rsetup,
                          'arguments': arguments,
                          'initialization': self.initialization,
+                         'zopepy_initialization': self.initialization,
                          'env_initialization': self.env_initialization,
                          }
 
@@ -244,6 +245,11 @@ class Recipe(egg.Recipe):
         if interpreter:
             interpreter_vars = self.get_script_vars(template_vars, interpreter)
             inst_script = os.path.join(bin, interpreter)
+            init_key = '%s-initialization' % self.interpreter
+            template_vars['zopepy_initialization'] = self.options.get(
+                init_key,
+                template_vars['zopepy_initialization']
+            )
             installed_scripts[interpreter] = inst_script, py_script_template % template_vars
 
         if self.env_file:
@@ -395,7 +401,7 @@ import sys
 
 sys.path[0:0] = [ %(path)s ]
 
-%(initialization)s
+%(zopepy_initialization)s
 
 _interactive = True
 if len(sys.argv) > 1:

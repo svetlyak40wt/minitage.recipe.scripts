@@ -6,6 +6,7 @@ UP
 ----
 
     - Split tests
+    - Add initialization for interpreter script
     - Fix type 'list'and pattern replacement code
 
 1.50
