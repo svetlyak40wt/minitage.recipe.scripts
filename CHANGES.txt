@@ -9,6 +9,11 @@ UP
     - Add initialization for interpreter script
     - Fix type 'list'and pattern replacement code
 
+1.55
+-----
+
+    - script wrapper kills child on SIGTERM.
+
 1.50
 ------
 
